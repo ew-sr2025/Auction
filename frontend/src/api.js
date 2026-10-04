@@ -1,8 +1,8 @@
 import axios from 'axios';
-
-const api = axios.create({ baseURL: 'pacific-delight.railway.internal' });
-
-api.interceptors.request.use((cfg) => {
+const API = axios.create({
+  baseURL: "https://railway.app"
+});
+API.interceptors.request.use((cfg) => {
   const token = localStorage.getItem('token');
   if (token) cfg.headers.Authorization = `Bearer ${token}`;
   return cfg;
