@@ -11,7 +11,9 @@ export function SocketProvider({ children }) {
   const [socket, setSocket] = useState(null);
 
   useEffect(() => {
-    const s = io({ auth: token ? { token } : {} });
+    const s = io("https://pacific-delight.railway.app", { 
+  auth: token ? { token } : {} 
+});
     setSocket(s);
     return () => s.disconnect();
   }, [token]);
