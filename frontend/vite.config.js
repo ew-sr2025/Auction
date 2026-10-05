@@ -4,7 +4,7 @@ import { loadEnv } from 'vite';
 
 export default defineConfig(({ mode }) => {
   const { VITE_BACKEND } = loadEnv(mode, process.cwd(), 'VITE_');
-  const target = (VITE_BACKEND || 'http://localhost:5000').replace(/\/+$/, '');
+  const target = (VITE_BACKEND || 'pacific-delight-production-c013.up.railway.app').replace(/\/+$/, '');
 
   return {
     plugins: [react()],
