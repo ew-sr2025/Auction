@@ -12,4 +12,4 @@ API.interceptors.request.use((cfg) => {
 export const errMsg = (e) =>
   e?.response?.data?.message || e?.message || 'Xatolik yuz berdi';
 
-export default api;
+export default API;
