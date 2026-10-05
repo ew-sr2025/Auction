@@ -5,7 +5,6 @@ import { useAuth } from './AuthContext.jsx';
 const SocketCtx = createContext(null);
 export const useSocket = () => useContext(SocketCtx);
 
-// Token o'zgarsa (login/logout) socket qayta ulanadi
 export function SocketProvider({ children }) {
   const { token } = useAuth();
   const [socket, setSocket] = useState(null);
