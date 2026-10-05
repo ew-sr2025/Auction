@@ -1,14 +1,11 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { loadEnv } from 'vite';
+import { DEFAULT_BACKEND_URL } from './backend-url.js';
 
 export default defineConfig(({ mode }) => {
   const { VITE_BACKEND } = loadEnv(mode, process.cwd(), 'VITE_');
-  if (mode === 'production' && !VITE_BACKEND) {
-    throw new Error('VITE_BACKEND must be set to the public backend URL before building the frontend.');
-  }
-
-  const target = (VITE_BACKEND || 'http://localhost:5000').replace(/\/+$/, '');
+  const target = (VITE_BACKEND || DEFAULT_BACKEND_URL).replace(/\/+$/, '');
 
   return {
     plugins: [react()],

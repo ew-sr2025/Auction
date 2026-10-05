@@ -23,24 +23,26 @@ Frontend: React (Vite), React Router, Axios, socket.io-client
 
 ## Frontend va backend manzili
 
-Frontend va backend turli serverlarda ishlasa, `VITE_BACKEND` ni frontend
-servisining build/deploy environment sozlamasida backendning ommaviy URL
-manziliga sozlang (`backend/.env` ichiga emas):
+Backend manzili frontend kodida `frontend/backend-url.js` faylidagi
+`DEFAULT_BACKEND_URL` orqali standart qilib ko'rsatilgan. Shu sababli alohida
+environment sozlamasi kiritmasdan deploy qilish mumkin. Backend manzili o'zgarsa,
+shu fayldagi URL'ni yangilab frontendni qayta build/deploy qiling.
+
+Ixtiyoriy ravishda Render kabi frontend hosting xizmatining build environment
+sozlamasida `VITE_BACKEND` ni ko'rsatib, koddagi standart URL o'rniga boshqa
+manzildan foydalanish mumkin (`backend/.env` ichida emas):
 
 ```
 VITE_BACKEND=https://api.example.com
 ```
 
-Bu bitta sozlama HTTP API, yuklangan fayllar va Socket.IO ulanishlarida ishlatiladi.
-Vite bu o'zgaruvchini build vaqtida o'qiydi; manzil o'zgarganda frontendni qayta
-build/deploy qiling. URL faqat origin bo'lishi kerak (masalan, `/api` qo'shmang).
-`VITE_BACKEND` bo'lmasa production build noto'g'ri sozlamali deploy hosil qilmaslik
-uchun xato bilan to'xtaydi.
+`VITE_BACKEND` yoki koddagi standart URL HTTP API, yuklangan fayllar va Socket.IO
+ulanishlarida ishlatiladi. URL faqat origin bo'lishi kerak (masalan, `/api`
+qo'shmang).
 
-Lokal ishga tushirishda `VITE_BACKEND` ni ko'rsatmasangiz, frontend API va
-Socket.IO so'rovlarini Vite proksisi orqali `http://localhost:5000` ga uzatadi.
-Backend boshqa portda bo'lsa, frontend papkasidagi `.env` fayliga
-`VITE_BACKEND=http://localhost:<port>` yozing.
+Lokal backendga ulanish uchun frontend papkasidagi `.env` fayliga
+`VITE_BACKEND=http://localhost:5000` yozing. Bu standart public URL o'rniga
+lokal backendni ishlatadi; API va Socket.IO so'rovlari Vite proxy orqali o'tadi.
 
 Cross-origin so'rovlar uchun backend `.env` dagi `CLIENT_URL` frontendning
 originiga mos kelishi kerak. `CLIENT_URL` berilmasa, backend CORS uchun `*`
