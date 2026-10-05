@@ -11,7 +11,7 @@ const { startAuctionScheduler } = require('./jobs/auctionScheduler');
   const server = http.createServer(app);
   const io = require('socket.io')(http, {
     cors: {
-      origin: "https://auction-8qw6.onrender.com", // Render'dagi frontend manzilingiz
+      origin: process.env.CLIENT_URL, // Render'dagi frontend manzilingiz
       methods: ["GET", "POST"],
       credentials: true
     }
