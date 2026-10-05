@@ -11,7 +11,7 @@ export function SocketProvider({ children }) {
   const [socket, setSocket] = useState(null);
 
   useEffect(() => {
-    const s = io("https://pacific-delight.railway.app", {
+    const s = io("https://pacific-delight.railway.internal", {
       auth: token ? { token } : {}
     });
     setSocket(s);

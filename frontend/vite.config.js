@@ -1,8 +1,5 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
-
-// Backend porti .env dagi PORT bilan bir xil bo'lishi kerak.
-// Boshqa port bo'lsa: VITE_BACKEND=http://localhost:4000 npm run dev
 const target = process.env.VITE_BACKEND || 'https://pacific-delight.railway.internal';
 
 export default defineConfig({
