@@ -21,8 +21,27 @@ Frontend: React (Vite), React Router, Axios, socket.io-client
    ```
    Brauzerda http://localhost:5173 ni oching.
 
-Backend porti 5000 dan boshqa bo'lsa (`.env` dagi PORT):
-`VITE_BACKEND=http://localhost:4000 npm run dev`
+## Frontend va backend manzili
+
+Frontend va backend turli serverlarda ishlasa, frontend build/deploy muhitida
+faqat `VITE_BACKEND` ni backendning ommaviy URL manziliga sozlang:
+
+```
+VITE_BACKEND=https://api.example.com
+```
+
+Bu bitta sozlama HTTP API, yuklangan fayllar va Socket.IO ulanishlarida ishlatiladi.
+Vite bu o'zgaruvchini build vaqtida o'qiydi; manzil o'zgarganda frontendni qayta
+build/deploy qiling. URL faqat origin bo'lishi kerak (masalan, `/api` qo'shmang).
+
+Lokal ishga tushirishda `VITE_BACKEND` ni ko'rsatmasangiz, frontend API va
+Socket.IO so'rovlarini Vite proksisi orqali `http://localhost:5000` ga uzatadi.
+Backend boshqa portda bo'lsa, frontend papkasidagi `.env` fayliga
+`VITE_BACKEND=http://localhost:<port>` yozing.
+
+Cross-origin so'rovlar uchun backend `.env` dagi `CLIENT_URL` frontendning
+originiga mos kelishi kerak. `CLIENT_URL` berilmasa, backend CORS uchun `*`
+ishlatadi.
 
 ## .env (backend)
 

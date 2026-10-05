@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext.jsx';
 import { useSocket } from '../context/SocketContext.jsx';
 import Countdown from '../components/Countdown.jsx';
 import PriceTicker from '../components/PriceTicker.jsx';
+import { assetUrl } from '../config.js';
 import { STATUS_LABEL, fmtDate, fmtPrice, fullName } from '../utils';
 
 export default function ProductDetail() {
@@ -232,7 +233,7 @@ export default function ProductDetail() {
       <div className="detail">
         <div className="detail-gallery">
           <div className="detail-main-img">
-            {imgs[img] ? <img src={imgs[img]} alt={product.title} /> : <div className="no-img">Rasm yo'q</div>}
+            {imgs[img] ? <img src={assetUrl(imgs[img])} alt={product.title} /> : <div className="no-img">Rasm yo'q</div>}
           </div>
           {imgs.length > 1 && (
             <div className="thumbs">

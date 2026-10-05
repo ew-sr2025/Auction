@@ -9,15 +9,9 @@ const { startAuctionScheduler } = require('./jobs/auctionScheduler');
   await connectDB();
 
   const server = http.createServer(app);
-  const io = require('socket.io')(http, {
-    cors: {
-      origin: process.env.CLIENT_URL, // Render'dagi frontend manzilingiz
-      methods: ["GET", "POST"],
-      credentials: true
-    }
-  });
+  const io = initSocket(server);
 
-  app.set('io', io); // controllerlarda: req.app.get('io')
+  app.set('io', io);
 
   startAuctionScheduler(io);
 

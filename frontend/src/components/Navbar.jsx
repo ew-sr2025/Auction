@@ -1,5 +1,6 @@
 import { Link, NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
+import { assetUrl } from '../config.js';
 
 export default function Navbar() {
   const { user, logout } = useAuth();
@@ -14,7 +15,7 @@ export default function Navbar() {
           {user ? (
             <>
               <NavLink to="/profile">
-                {user.avatar ? <img className="mini-avatar" src={user.avatar} alt="" /> : null}
+                {user.avatar ? <img className="mini-avatar" src={assetUrl(user.avatar)} alt="" /> : null}
                 {user.username}
               </NavLink>
               <button

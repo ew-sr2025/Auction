@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import Countdown from './Countdown.jsx';
 import PriceTicker from './PriceTicker.jsx';
+import { assetUrl } from '../config.js';
 import { fullName } from '../utils';
 
 export default function ProductCard({ product }) {
@@ -9,7 +10,7 @@ export default function ProductCard({ product }) {
     <Link to={`/product/${p._id}`} className="card lot">
       <div className="lot-img">
         {p.images?.[0] ? (
-          <img src={p.images[0]} alt={p.title} loading="lazy" />
+          <img src={assetUrl(p.images[0])} alt={p.title} loading="lazy" />
         ) : (
           <div className="no-img">Rasm yo'q</div>
         )}

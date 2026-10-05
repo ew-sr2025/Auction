@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState } from 'react';
 import { io } from 'socket.io-client';
 import { useAuth } from './AuthContext.jsx';
+import { backendUrl } from '../config.js';
 
 const SocketCtx = createContext(null);
 export const useSocket = () => useContext(SocketCtx);
@@ -10,7 +11,7 @@ export function SocketProvider({ children }) {
   const [socket, setSocket] = useState(null);
 
   useEffect(() => {
-    const s = io("https://pacific-delight.railway.internal", {
+    const s = io(backendUrl || undefined, {
       auth: token ? { token } : {}
     });
     setSocket(s);

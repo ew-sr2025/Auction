@@ -1,6 +1,8 @@
 import axios from 'axios';
+import { backendUrl } from './config.js';
+
 const API = axios.create({
-  baseURL: "https://pacific-delight.railway.internal"
+  baseURL: backendUrl
 });
 API.interceptors.request.use((cfg) => {
   const token = localStorage.getItem('token');

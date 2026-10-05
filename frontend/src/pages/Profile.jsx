@@ -4,6 +4,7 @@ import api, { errMsg } from '../api';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useSocket } from '../context/SocketContext.jsx';
 import Countdown from '../components/Countdown.jsx';
+import { assetUrl } from '../config.js';
 import { STATUS_LABEL, fmtDate, fmtPrice, fullName } from '../utils';
 
 export default function Profile() {
@@ -13,7 +14,7 @@ export default function Profile() {
   return (
     <>
       <div className="profile-head">
-        {user.avatar ? <img className="avatar" src={user.avatar} alt="" /> : <div className="avatar ph">{user.firstName[0]}</div>}
+        {user.avatar ? <img className="avatar" src={assetUrl(user.avatar)} alt="" /> : <div className="avatar ph">{user.firstName[0]}</div>}
         <div>
           <h1>{fullName(user)}</h1>
           <div className="muted">@{user.username} · {user.email}</div>
@@ -102,7 +103,7 @@ function MyProducts({ goCreate }) {
       <div className="my-list">
         {items.map((p) => (
           <div key={p._id} className={`card my-item ${p.status !== 'active' ? 'inactive' : ''}`}>
-            <div className="my-thumb">{p.images?.[0] ? <img src={p.images[0]} alt="" /> : <div className="no-img sm">Rasm yo'q</div>}</div>
+            <div className="my-thumb">{p.images?.[0] ? <img src={assetUrl(p.images[0])} alt="" /> : <div className="no-img sm">Rasm yo'q</div>}</div>
             <div className="my-main">
               <div className="my-title">
                 <Link to={`/product/${p._id}`} className="link">{p.title}</Link>
