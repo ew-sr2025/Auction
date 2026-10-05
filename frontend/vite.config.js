@@ -4,7 +4,11 @@ import { loadEnv } from 'vite';
 
 export default defineConfig(({ mode }) => {
   const { VITE_BACKEND } = loadEnv(mode, process.cwd(), 'VITE_');
-  const target = (VITE_BACKEND || 'pacific-delight-production-c013.up.railway.app').replace(/\/+$/, '');
+  if (mode === 'production' && !VITE_BACKEND) {
+    throw new Error('VITE_BACKEND must be set to the public backend URL before building the frontend.');
+  }
+
+  const target = (VITE_BACKEND || 'http://localhost:5000').replace(/\/+$/, '');
 
   return {
     plugins: [react()],

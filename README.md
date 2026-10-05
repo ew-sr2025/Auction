@@ -23,8 +23,9 @@ Frontend: React (Vite), React Router, Axios, socket.io-client
 
 ## Frontend va backend manzili
 
-Frontend va backend turli serverlarda ishlasa, frontend build/deploy muhitida
-faqat `VITE_BACKEND` ni backendning ommaviy URL manziliga sozlang:
+Frontend va backend turli serverlarda ishlasa, `VITE_BACKEND` ni frontend
+servisining build/deploy environment sozlamasida backendning ommaviy URL
+manziliga sozlang (`backend/.env` ichiga emas):
 
 ```
 VITE_BACKEND=https://api.example.com
@@ -33,6 +34,8 @@ VITE_BACKEND=https://api.example.com
 Bu bitta sozlama HTTP API, yuklangan fayllar va Socket.IO ulanishlarida ishlatiladi.
 Vite bu o'zgaruvchini build vaqtida o'qiydi; manzil o'zgarganda frontendni qayta
 build/deploy qiling. URL faqat origin bo'lishi kerak (masalan, `/api` qo'shmang).
+`VITE_BACKEND` bo'lmasa production build noto'g'ri sozlamali deploy hosil qilmaslik
+uchun xato bilan to'xtaydi.
 
 Lokal ishga tushirishda `VITE_BACKEND` ni ko'rsatmasangiz, frontend API va
 Socket.IO so'rovlarini Vite proksisi orqali `http://localhost:5000` ga uzatadi.
