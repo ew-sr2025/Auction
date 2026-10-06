@@ -161,7 +161,7 @@ function MyProducts({ goCreate }) {
 
 function CreateProduct({ goEdit, done }) {
   const { user } = useAuth();
-  const [f, setF] = useState({ title: '', description: '', startingPrice: '50000', durationDays: '5' });
+  const [f, setF] = useState({ title: '', description: '', startingPrice: '5000', durationDays: '5' });
   const [files, setFiles] = useState([]);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -209,7 +209,7 @@ function CreateProduct({ goEdit, done }) {
       <div className="row2">
         <label>
           Boshlang'ich narx (so'm, kamida 50 000)
-          <input type="number" min={50000} step={1000} value={f.startingPrice} onChange={set('startingPrice')} required />
+          <input type="number" min={5000} step={1000} value={f.startingPrice} onChange={set('startingPrice')} required />
         </label>
         <label>
           Muddat
