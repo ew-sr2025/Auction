@@ -78,6 +78,8 @@ label { display: flex; flex-direction: column; gap: 6px; font-weight: 500; font-
 .form { padding: 24px; display: flex; flex-direction: column; gap: 14px; }
 .form.narrow { max-width: 520px; margin: 0 auto; }
 .form h1, .form h2 { margin: 0; }
+.form-fields { display: flex; flex-direction: column; gap: 14px; }
+.register-actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
 
 /* Home */

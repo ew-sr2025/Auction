@@ -39,8 +39,8 @@ export function AuthProvider({ children }) {
     saveAuth(data);
   };
 
-  const register = async (payload) => {
-    const { data } = await api.post('/auth/register', payload);
+  const register = async (payload, code) => {
+    const { data } = await api.post('/auth/register/verify', { ...payload, code });
     saveAuth(data);
   };
 

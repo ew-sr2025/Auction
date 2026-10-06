@@ -1,8 +1,16 @@
 const router = require('express').Router();
-const { register, login, getMe } = require('../controllers/authController');
+const {
+  login,
+  getMe,
+  requestRegistrationCode,
+  resendRegistrationCode,
+  verifyRegistration,
+} = require('../controllers/authController');
 const { protect } = require('../middleware/auth');
 
-router.post('/register', register);
+router.post('/register/code', requestRegistrationCode);
+router.post('/register/resend', resendRegistrationCode);
+router.post('/register/verify', verifyRegistration);
 router.post('/login', login);
 router.get('/me', protect, getMe);
 

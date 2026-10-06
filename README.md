@@ -57,8 +57,15 @@ ishlatadi.
 | JWT_SECRET | JWT kaliti |
 | JWT_EXPIRES_IN | ixtiyoriy, standart 7d |
 | CLIENT_URL | ixtiyoriy (CORS), standart * |
+| SMTP_HOST | email yuborish serveri |
+| SMTP_PORT | ixtiyoriy, SMTP porti (standart 587; 465 bo'lsa TLS) |
+| SMTP_USER | SMTP foydalanuvchi nomi |
+| SMTP_PASS | SMTP paroli yoki ilova paroli |
+| EMAIL_FROM | yuboruvchi email manzili |
 
 Nomlar boshqacha bo'lsa, `backend/src/config/env.js` ni moslang.
+Ro'yxatdan o'tishda emailga 6 xonali tasdiqlash kodi yuboriladi. Kod 10 daqiqa
+amal qiladi; qayta yuborish tugmasi 2 daqiqadan keyin faollashadi.
 
 ## Qoidalar (backend/src/config/constants.js)
 
@@ -73,7 +80,9 @@ Nomlar boshqacha bo'lsa, `backend/src/config/env.js` ni moslang.
 
 | Metod | Yo'l | Izoh |
 |---|---|---|
-| POST | /api/auth/register | firstName, lastName, email, birthDate, password, username (ixtiyoriy) |
+| POST | /api/auth/register/code | Ro'yxatdan o'tish ma'lumotlari bilan email tasdiqlash kodini yuborish |
+| POST | /api/auth/register/resend | `{ "email": "..." }` bilan yangi tasdiqlash kodi yuborish |
+| POST | /api/auth/register/verify | Ro'yxatdan o'tish ma'lumotlari va `{ "code": "123456" }` bilan tasdiqlash |
 | POST | /api/auth/login | identifier (username yoki email), password |
 | GET | /api/auth/me | joriy foydalanuvchi |
 | PUT | /api/users/me | profil: firstName, lastName, bio, phone, avatar (multipart) |
