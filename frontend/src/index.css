@@ -80,6 +80,9 @@ label { display: flex; flex-direction: column; gap: 6px; font-weight: 500; font-
 .form h1, .form h2 { margin: 0; }
 .form-fields { display: flex; flex-direction: column; gap: 14px; }
 .register-actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.google-signin { display: flex; justify-content: center; min-height: 40px; }
+.auth-divider { display: flex; align-items: center; gap: 12px; color: var(--muted); font-size: 13px; }
+.auth-divider::before, .auth-divider::after { content: ''; height: 1px; background: var(--line); flex: 1; }
 .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
 
 /* Home */

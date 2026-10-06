@@ -1,4 +1,5 @@
 const crypto = require('crypto');
+const { OAuth2Client } = require('google-auth-library');
 const User = require('../models/User');
 const EmailVerification = require('../models/EmailVerification');
 const AppError = require('../utils/AppError');
@@ -6,6 +7,9 @@ const asyncHandler = require('../utils/asyncHandler');
 const { sendRegistrationCode } = require('../utils/email');
 const generateUsername = require('../utils/generateUsername');
 const { signToken } = require('../utils/token');
+const { googleClientId } = require('../config/env');
+
+const googleClient = new OAuth2Client(googleClientId);
 
 const sendAuth = (res, user, status = 200) =>
   res.status(status).json({ success: true, token: signToken(user._id), user });
@@ -134,6 +138,50 @@ exports.resendRegistrationCode = asyncHandler(async (req, res) => {
 
   const result = await deliverCode(email, { allowResend: true });
   res.json({ success: true, ...result });
+});
+
+// POST /api/auth/google
+exports.googleLogin = asyncHandler(async (req, res) => {
+  if (!googleClientId) {
+    throw new AppError('Google orqali kirish sozlanmagan', 503);
+  }
+  const { credential } = req.body || {};
+  if (typeof credential !== 'string' || !credential) {
+    throw new AppError('Google tokeni yuborilmadi');
+  }
+
+  let payload;
+  try {
+    const ticket = await googleClient.verifyIdToken({
+      idToken: credential,
+      audience: googleClientId,
+    });
+    payload = ticket.getPayload();
+  } catch {
+    throw new AppError('Google orqali kirishni tasdiqlab bo‘lmadi', 401);
+  }
+
+  if (!payload?.email || payload.email_verified !== true) {
+    throw new AppError('Google hisobida tasdiqlangan email topilmadi', 401);
+  }
+
+  const email = payload.email.toLowerCase();
+  let user = await User.findOne({ email });
+  if (!user) {
+    const fullName = (payload.name || '').trim().split(/\s+/);
+    const firstName = payload.given_name || fullName.shift() || 'Google';
+    const lastName = payload.family_name || fullName.join(' ') || 'User';
+    user = await User.create({
+      firstName,
+      lastName,
+      email,
+      username: await generateUsername(),
+      password: crypto.randomBytes(32).toString('hex'),
+      avatar: payload.picture || '',
+    });
+  }
+
+  sendAuth(res, user);
 });
 
 // POST /api/auth/register/verify

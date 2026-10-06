@@ -62,10 +62,24 @@ ishlatadi.
 | SMTP_USER | SMTP foydalanuvchi nomi |
 | SMTP_PASS | SMTP paroli yoki ilova paroli |
 | EMAIL_FROM | yuboruvchi email manzili |
+| GOOGLE_CLIENT_ID | Google OAuth web client ID (backend token tekshiruvi uchun) |
 
 Nomlar boshqacha bo'lsa, `backend/src/config/env.js` ni moslang.
 Ro'yxatdan o'tishda emailga 6 xonali tasdiqlash kodi yuboriladi. Kod 10 daqiqa
 amal qiladi; qayta yuborish tugmasi 2 daqiqadan keyin faollashadi.
+
+Google orqali kirishni yoqish uchun Google Cloud Console'da OAuth client ID
+(Web application) yarating va JavaScript origins ro'yxatiga frontend manzilini
+qo'shing (masalan `http://localhost:5173` hamda production domen). OAuth
+consent screen'ni ham sozlang.
+
+- `backend/.env`: `GOOGLE_CLIENT_ID=...`
+- `frontend/.env`: `VITE_GOOGLE_CLIENT_ID=...`
+
+Ikkala joyda ham bir xil Web client ID ishlatiladi. Frontend `.env` o'zgargach,
+Vite serverini qayta ishga tushiring yoki production buildni yangilang.
+Google tasdiqlagan email avval ro'yxatdan o'tgan bo'lsa, shu hisobga kiradi;
+yangi bo'lsa, akkaunt avtomatik yaratiladi.
 
 ## Qoidalar (backend/src/config/constants.js)
 
@@ -83,6 +97,7 @@ amal qiladi; qayta yuborish tugmasi 2 daqiqadan keyin faollashadi.
 | POST | /api/auth/register/code | Ro'yxatdan o'tish ma'lumotlari bilan email tasdiqlash kodini yuborish |
 | POST | /api/auth/register/resend | `{ "email": "..." }` bilan yangi tasdiqlash kodi yuborish |
 | POST | /api/auth/register/verify | Ro'yxatdan o'tish ma'lumotlari va `{ "code": "123456" }` bilan tasdiqlash |
+| POST | /api/auth/google | Google ID tokenini tekshirib, tizimga kiritish yoki akkaunt yaratish |
 | POST | /api/auth/login | identifier (username yoki email), password |
 | GET | /api/auth/me | joriy foydalanuvchi |
 | PUT | /api/users/me | profil: firstName, lastName, bio, phone, avatar (multipart) |

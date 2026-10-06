@@ -39,6 +39,11 @@ export function AuthProvider({ children }) {
     saveAuth(data);
   };
 
+  const googleLogin = async (credential) => {
+    const { data } = await api.post('/auth/google', { credential });
+    saveAuth(data);
+  };
+
   const register = async (payload, code) => {
     const { data } = await api.post('/auth/register/verify', { ...payload, code });
     saveAuth(data);
@@ -46,7 +51,7 @@ export function AuthProvider({ children }) {
 
   return (
     <AuthCtx.Provider
-      value={{ user, token, loading, login, register, logout, updateUser: setUser }}
+      value={{ user, token, loading, login, googleLogin, register, logout, updateUser: setUser }}
     >
       {children}
     </AuthCtx.Provider>

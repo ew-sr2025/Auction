@@ -2,9 +2,10 @@ import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import api, { errMsg } from '../api';
+import GoogleSignInButton from '../components/GoogleSignInButton.jsx';
 
 export default function Register() {
-  const { register } = useAuth();
+  const { register, googleLogin } = useAuth();
   const navigate = useNavigate();
   const [step, setStep] = useState('details');
   const [f, setF] = useState({
@@ -84,6 +85,19 @@ export default function Register() {
     }
   };
 
+  const signInWithGoogle = async (credential) => {
+    setError('');
+    setBusy(true);
+    try {
+      await googleLogin(credential);
+      navigate('/', { replace: true });
+    } catch (err) {
+      setError(errMsg(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <div className="card form narrow">
       <h1>Ro'yxatdan o'tish</h1>
@@ -122,6 +136,12 @@ export default function Register() {
           <p className="muted">
             Akkauntingiz bormi? <Link to="/login" className="link">Kiring</Link>
           </p>
+          <div className="auth-divider"><span>yoki</span></div>
+          <GoogleSignInButton
+            disabled={busy}
+            onCredential={signInWithGoogle}
+            onError={(err) => setError(errMsg(err))}
+          />
         </form>
       ) : (
         <form className="form-fields" onSubmit={verify}>
