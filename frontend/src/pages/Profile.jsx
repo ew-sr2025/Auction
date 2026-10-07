@@ -39,6 +39,7 @@ function MyProducts({ goCreate }) {
   const socket = useSocket();
   const [items, setItems] = useState(null);
   const [error, setError] = useState('');
+  const [editing, setEditing] = useState(null);
   const itemsRef = useRef([]);
   itemsRef.current = items || [];
 
@@ -100,6 +101,16 @@ function MyProducts({ goCreate }) {
   return (
     <>
       {error && <div className="alert error">{error}</div>}
+      {editing && (
+        <EditProduct
+          product={editing}
+          onClose={() => setEditing(null)}
+          onSaved={async () => {
+            setEditing(null);
+            await load();
+          }}
+        />
+      )}
       <div className="my-list">
         {items.map((p) => (
           <div key={p._id} className={`card my-item ${p.status !== 'active' ? 'inactive' : ''}`}>
@@ -126,6 +137,9 @@ function MyProducts({ goCreate }) {
               )}
             </div>
             <div className="my-actions">
+              <button type="button" className="btn accent" onClick={() => setEditing(p)}>
+                Tahrirlash
+              </button>
               {p.status === 'active' && p.bidCount > 0 && (
                 <button
                   className="btn primary"
@@ -232,11 +246,112 @@ function CreateProduct({ goEdit, done }) {
   );
 }
 
+function EditProduct({ product, onClose, onSaved }) {
+  const [f, setF] = useState({
+    title: product.title || '',
+    description: product.description || '',
+    startingPrice: String(product.startingPrice || 0),
+    durationDays: String(product.durationDays || 1),
+  });
+  const [removeImages, setRemoveImages] = useState([]);
+  const [files, setFiles] = useState([]);
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+  const canEditPrice = product.bidCount === 0;
+  const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
+
+  const submit = async (e) => {
+    e.preventDefault();
+    setError('');
+    setBusy(true);
+    try {
+      const fd = new FormData();
+      fd.append('title', f.title.trim());
+      fd.append('description', f.description.trim());
+      fd.append('durationDays', String(f.durationDays));
+      if (canEditPrice) fd.append('startingPrice', String(f.startingPrice));
+      removeImages.forEach((img) => fd.append('removeImages', img));
+      files.forEach((file) => fd.append('images', file));
+      await api.put(`/products/${product._id}`, fd);
+      onSaved();
+    } catch (err) {
+      setError(errMsg(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="card form">
+      <h2>Mahsulotni tahrirlash</h2>
+      {error && <div className="alert error">{error}</div>}
+      <form onSubmit={submit}>
+        <label>
+          Nomi
+          <input value={f.title} onChange={set('title')} maxLength={120} required />
+        </label>
+        <label>
+          Tavsif
+          <textarea rows={4} value={f.description} onChange={set('description')} maxLength={2000} />
+        </label>
+        <div className="row2">
+          <label>
+            Boshlang'ich narx (so'm)
+            <input type="number" min={5000} step={1000} value={f.startingPrice} onChange={set('startingPrice')} disabled={!canEditPrice} required />
+          </label>
+          <label>
+            Muddat (kun)
+            <select value={f.durationDays} onChange={set('durationDays')}>
+              {[1, 3, 5, 7, 10, 14, 30].map((d) => (
+                <option key={d} value={d}>{d} kun</option>
+              ))}
+            </select>
+          </label>
+        </div>
+        {!canEditPrice && <p className="muted small">Takliflar bo'lgani uchun narxni o'zgartirib bo'lmaydi.</p>}
+        {product.images?.length > 0 && (
+          <div>
+            <div className="muted small">Mavjud rasmlar</div>
+            <div className="row2">
+              {product.images.map((img) => (
+                <label key={img} className="card" style={{ padding: '10px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <img src={assetUrl(img)} alt="" style={{ width: '100%', height: '100px', objectFit: 'cover', borderRadius: '8px' }} />
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <input
+                      type="checkbox"
+                      checked={removeImages.includes(img)}
+                      onChange={(e) => {
+                        const checked = e.target.checked;
+                        setRemoveImages((prev) => checked ? [...prev, img] : prev.filter((x) => x !== img));
+                      }}
+                    />
+                    O'chirish
+                  </span>
+                </label>
+              ))}
+            </div>
+          </div>
+        )}
+        <label>
+          Yangi rasmlar qo'shish (5 tagacha)
+          <input type="file" accept="image/*" multiple onChange={(e) => setFiles(Array.from(e.target.files).slice(0, 5))} />
+        </label>
+        {files.length > 0 && <div className="muted small">{files.map((x) => x.name).join(', ')}</div>}
+        <div className="row2" style={{ marginTop: '12px' }}>
+          <button type="button" className="btn" onClick={onClose}>Bekor qilish</button>
+          <button className="btn primary" disabled={busy}>{busy ? 'Saqlanmoqda...' : 'Saqlash'}</button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
 function EditProfile() {
   const { user, updateUser } = useAuth();
   const [f, setF] = useState({
     firstName: user.firstName,
     lastName: user.lastName,
+    username: user.username || '',
     bio: user.bio || '',
     phone: user.phone || '',
   });
@@ -281,6 +396,10 @@ function EditProfile() {
           <input value={f.lastName} onChange={set('lastName')} required />
         </label>
       </div>
+      <label>
+        Username
+        <input value={f.username} onChange={set('username')} minLength={3} maxLength={20} pattern="[a-z0-9_]+" required />
+      </label>
       <label>
         Telefon raqam
         <input value={f.phone} onChange={set('phone')} placeholder="+998901234567" />

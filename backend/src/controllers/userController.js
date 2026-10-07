@@ -1,25 +1,37 @@
+const User = require('../models/User');
 const AppError = require('../utils/AppError');
 const asyncHandler = require('../utils/asyncHandler');
-const { removeUploaded, removeFiles } = require('../utils/files');
+const { removeFiles } = require('../utils/files');
 
-// PUT /api/users/me  (multipart/form-data: firstName, lastName, bio, phone, avatar)
+// PUT /api/users/me  (multipart/form-data: firstName, lastName, username, bio, phone, avatar)
 exports.updateMe = asyncHandler(async (req, res) => {
   const user = req.user;
-  const oldAvatar = user.avatar;
 
   try {
-    const { firstName, lastName, bio, phone } = req.body;
+    const { firstName, lastName, username, bio, phone } = req.body;
 
     if (firstName !== undefined) {
-      if (!firstName.trim()) throw new AppError("Ism bo'sh bo'lmasligi kerak");
-      user.firstName = firstName;
+      const value = String(firstName).trim();
+      if (!value) throw new AppError("Ism bo'sh bo'lmasligi kerak");
+      user.firstName = value;
     }
     if (lastName !== undefined) {
-      if (!lastName.trim()) throw new AppError("Familya bo'sh bo'lmasligi kerak");
-      user.lastName = lastName;
+      const value = String(lastName).trim();
+      if (!value) throw new AppError("Familya bo'sh bo'lmasligi kerak");
+      user.lastName = value;
     }
-    if (bio !== undefined) user.bio = bio.trim();
-    if (phone !== undefined) user.phone = phone.replace(/[\s()-]/g, '');
+    if (username !== undefined) {
+      const normalized = String(username).trim().toLowerCase();
+      if (!/^[a-z0-9_]{3,20}$/.test(normalized)) {
+        throw new AppError("Username 3-20 belgi: lotin harflari, raqam va _ bo'lishi mumkin");
+      }
+      if (normalized !== user.username && (await User.exists({ username: normalized, _id: { $ne: user._id } }))) {
+        throw new AppError('Bu username allaqachon band', 409);
+      }
+      user.username = normalized;
+    }
+    if (bio !== undefined) user.bio = String(bio).trim();
+    if (phone !== undefined && typeof phone === 'string') user.phone = phone.replace(/[\s()-]/g, '');
     if (req.file) user.avatar = `/uploads/${req.file.filename}`;
 
     await user.save();
@@ -28,6 +40,5 @@ exports.updateMe = asyncHandler(async (req, res) => {
     throw err;
   }
 
-  if (req.file) removeUploaded(oldAvatar);
   res.json({ success: true, user });
 });

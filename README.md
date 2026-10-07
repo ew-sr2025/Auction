@@ -100,10 +100,11 @@ yangi bo'lsa, akkaunt avtomatik yaratiladi.
 | POST | /api/auth/google | Google ID tokenini tekshirib, tizimga kiritish yoki akkaunt yaratish |
 | POST | /api/auth/login | identifier (username yoki email), password |
 | GET | /api/auth/me | joriy foydalanuvchi |
-| PUT | /api/users/me | profil: firstName, lastName, bio, phone, avatar (multipart) |
+| PUT | /api/users/me | profil: firstName, lastName, username, bio, phone, avatar (multipart) |
 | GET | /api/products | faol mahsulotlar (q, sort, page, limit) |
 | GET | /api/products/mine | mening mahsulotlarim (faol va nofaol) |
 | POST | /api/products | mahsulot joylash (telefon majburiy, multipart, images) |
+| PUT | /api/products/:id | mahsulotni tahrirlash: title, description, durationDays, startingPrice (faqat birinchi taklif yo'q bo'lsa), images, removeImages (URL MongoDB'dan o'chadi, fayl diskda qoladi) |
 | GET | /api/products/:id | mahsulot va takliflar tarixi |
 | GET | /api/products/:id/messages | xaridorning o'z suhbati yoki muallif uchun `?buyerId=...` |
 | GET | /api/products/:id/conversations | mahsulot muallifining xaridorlar bilan suhbatlari |

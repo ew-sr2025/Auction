@@ -13,6 +13,7 @@ router.post('/:id/messages', protect, messages.sendMessage);
 router.post('/', protect, requirePhone, upload.array('images', 5), c.createProduct);
 
 router.get('/:id', optionalAuth, c.getProduct);
+router.put('/:id', protect, upload.array('images', 5), c.updateProduct);
 router.delete('/:id', protect, c.deleteProduct);
 router.post('/:id/reactivate', protect, c.reactivateProduct);
 router.post('/:id/accept', protect, c.acceptOffer);

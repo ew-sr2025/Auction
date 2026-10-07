@@ -47,6 +47,11 @@ async function findOwned(req) {
 }
 
 const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const parseStringList = (value) => {
+  if (Array.isArray(value)) return value.filter((item) => typeof item === 'string');
+  if (typeof value === 'string') return value ? [value] : [];
+  return [];
+};
 
 // POST /api/products  (multipart: title, description, startingPrice, durationDays, images[])
 exports.createProduct = asyncHandler(async (req, res) => {
@@ -145,6 +150,68 @@ exports.getProduct = asyncHandler(async (req, res) => {
 });
 
 // DELETE /api/products/:id  (soft delete: bazada qoladi)
+exports.updateProduct = asyncHandler(async (req, res) => {
+  const uploaded = (req.files || []).map((file) => `/uploads/${file.filename}`);
+  let saved = false;
+  try {
+    const product = await findOwned(req);
+
+    const removeSet = new Set(
+      parseStringList(req.body?.removeImages)
+        .map((img) => String(img).trim().replace(/\\/g, '/'))
+        .filter((img) => img.startsWith('/uploads/'))
+    );
+    const keepImages = product.images.filter((img) => !removeSet.has(img));
+    const totalImages = keepImages.length + uploaded.length;
+    if (totalImages > 5) {
+      throw new AppError("Mahsulotga maksimal 5 ta rasm bo'lishi mumkin");
+    }
+
+    if (req.body.title !== undefined) {
+      const title = String(req.body.title).trim();
+      if (!title) throw new AppError('Mahsulot nomini kiriting');
+      product.title = title;
+    }
+    if (req.body.description !== undefined) {
+      product.description = String(req.body.description).trim();
+    }
+    if (req.body.durationDays !== undefined) {
+      const durationDays = parseInt(req.body.durationDays, 10);
+      if (!Number.isInteger(durationDays) || durationDays < 1 || durationDays > 30) {
+        throw new AppError("Muddat 1 dan 30 kungacha bo'lishi kerak");
+      }
+      product.durationDays = durationDays;
+      if (product.status === 'active' && product.bidCount === 0) {
+        product.endsAt = new Date(Date.now() + product.durationDays * (24 * 60 * 60 * 1000));
+      }
+    }
+    if (req.body.startingPrice !== undefined) {
+      const startingPrice = Number(req.body.startingPrice);
+      if (!Number.isInteger(startingPrice) || startingPrice < MIN_START_PRICE) {
+        throw new AppError(`Minimal boshlang'ich narx ${MIN_START_PRICE} so'm`);
+      }
+      if (product.bidCount > 0) {
+        throw new AppError("Takliflar bo'lgani uchun narxni o'zgartirib bo'lmaydi", 409);
+      }
+      product.startingPrice = startingPrice;
+      product.currentPrice = startingPrice;
+    }
+
+    if (removeSet.size > 0 || uploaded.length > 0) {
+      product.images = [...keepImages, ...uploaded];
+    }
+
+    await product.save();
+    saved = true;
+    await product.populate('author', AUTHOR_FIELDS);
+    emit(req, 'product:updated', { productId: product._id }, product._id);
+    res.json({ success: true, product: present(product, req.user._id) });
+  } catch (err) {
+    if (!saved) removeFiles(req.files);
+    throw err;
+  }
+});
+
 exports.deleteProduct = asyncHandler(async (req, res) => {
   const product = await findOwned(req);
   await product.softDelete();

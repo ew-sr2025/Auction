@@ -10,7 +10,7 @@ export default function ProductCard({ product }) {
     <Link to={`/product/${p._id}`} className="card lot">
       <div className="lot-img">
         {p.images?.[0] ? (
-          <img src={assetUrl(p.images[0])} alt={p.title} loading="lazy" />
+          <img height="100" src={assetUrl(p.images[0])} alt={p.title} loading="lazy" />
         ) : (
           <div className="no-img">Rasm yo'q</div>
         )}
