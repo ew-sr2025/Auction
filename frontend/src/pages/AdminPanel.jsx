@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import api, { errMsg } from '../api';
 import { useAuth } from '../context/AuthContext.jsx';
+import { assetUrl } from '../config.js';
 import { fmtDate, fullName } from '../utils';
 
 export default function AdminPanel() {
@@ -12,6 +13,8 @@ export default function AdminPanel() {
   const [page, setPage] = useState(1);
   const [searchInput, setSearchInput] = useState('');
   const [search, setSearch] = useState('');
+  const [section, setSection] = useState('users');
+  const [products, setProducts] = useState([]);
   const [banTarget, setBanTarget] = useState(null);
   const [banDurationType, setBanDurationType] = useState('temporary');
   const [banDuration, setBanDuration] = useState('1');
@@ -38,9 +41,27 @@ export default function AdminPanel() {
     }
   }, [page, search]);
 
+  const loadProducts = useCallback(async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const { data } = await api.get('/admin/products', {
+        params: { page, limit: 50, q: search },
+      });
+      setProducts(data.products);
+      setTotal(data.total);
+      setPages(Math.max(1, data.pages));
+    } catch (err) {
+      setError(errMsg(err));
+    } finally {
+      setLoading(false);
+    }
+  }, [page, search]);
+
   useEffect(() => {
-    loadUsers();
-  }, [loadUsers]);
+    if (section === 'users') loadUsers();
+    else loadProducts();
+  }, [section, loadProducts, loadUsers]);
 
   if (user?.role !== 'admin') return <Navigate to="/" replace />;
 
@@ -105,24 +126,47 @@ export default function AdminPanel() {
     setBanReason('');
   };
 
+  const removeProduct = async (target) => {
+    if (!window.confirm(`"${target.title}" mahsulotini darhol o‘chirasizmi?`)) return;
+    setBusyId(target._id);
+    setError('');
+    try {
+      await api.delete(`/admin/products/${target._id}`);
+      setProducts((current) => current.filter((product) => product._id !== target._id));
+      setTotal((current) => Math.max(0, current - 1));
+    } catch (err) {
+      setError(errMsg(err));
+    } finally {
+      setBusyId('');
+    }
+  };
+
   return (
     <section>
       <div className="admin-head">
         <div>
           <h1>Admin panel</h1>
-          <p className="muted">Foydalanuvchilar: {total}</p>
+          <p className="muted">{section === 'users' ? 'Foydalanuvchilar' : 'Mahsulotlar'}: {total}</p>
         </div>
         <form className="admin-search" onSubmit={submitSearch}>
           <input
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
-            placeholder="Ism, username yoki email"
-            aria-label="Foydalanuvchilarni qidirish"
+            placeholder={section === 'users' ? 'Ism, username yoki email' : 'Mahsulot yoki muallif'}
+            aria-label={section === 'users' ? 'Foydalanuvchilarni qidirish' : 'Mahsulotlarni qidirish'}
           />
           <button className="btn primary">Qidirish</button>
         </form>
       </div>
 
+      <div className="tabs admin-tabs">
+        <button className={section === 'users' ? 'on' : ''} onClick={() => { setSection('users'); setPage(1); }}>
+          Foydalanuvchilar
+        </button>
+        <button className={section === 'products' ? 'on' : ''} onClick={() => { setSection('products'); setPage(1); }}>
+          Mahsulotlar
+        </button>
+      </div>
       {error && <div className="alert error">{error}</div>}
       {banTarget && (
         <form className="card form admin-ban-form" onSubmit={submitBan}>
@@ -176,8 +220,35 @@ export default function AdminPanel() {
       )}
       {loading ? (
         <p className="muted">Yuklanmoqda...</p>
-      ) : users.length === 0 ? (
+      ) : section === 'users' && users.length === 0 ? (
         <p className="empty">Foydalanuvchilar topilmadi.</p>
+      ) : section === 'products' && products.length === 0 ? (
+        <p className="empty">Mahsulotlar topilmadi.</p>
+      ) : section === 'products' ? (
+        <div className="admin-products">
+          {products.map((product) => (
+            <article className="card admin-product" key={product._id}>
+              <div className="admin-product-info">
+                <strong>{product.title}</strong>
+                <span className="muted">@{product.author?.username || 'noma’lum muallif'}</span>
+                <span className="muted small">
+                  {product.status} · {fmtDate(product.createdAt)} · Xabarlar: {product.reportCount}/5
+                </span>
+              </div>
+              {product.images?.[0] && (
+                <img className="admin-product-thumb" src={assetUrl(product.images[0])} alt="" />
+              )}
+              <button
+                type="button"
+                className="btn danger"
+                disabled={busyId === product._id}
+                onClick={() => removeProduct(product)}
+              >
+                {busyId === product._id ? 'O‘chirilmoqda...' : 'Darhol ban berish / o‘chirish'}
+              </button>
+            </article>
+          ))}
+        </div>
       ) : (
         <div className="admin-users">
           {users.map((entry) => {

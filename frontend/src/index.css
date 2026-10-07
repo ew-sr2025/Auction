@@ -96,7 +96,7 @@ label { display: flex; flex-direction: column; gap: 6px; font-weight: 500; font-
 /* Lot card */
 .lot { display: flex; flex-direction: column; overflow: hidden; transition: border-color .15s; }
 .lot:hover { border-color: var(--teal); }
-.lot-img { aspect-ratio: 4 / 3; background: #e4e9ee; }
+.lot-img { height: 200px; background: #e4e9ee; }
 .lot-img img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .no-img { width: 100%; height: 100%; display: grid; place-items: center; color: var(--muted); font-size: 14px; min-height: 120px; }
 .no-img.sm { min-height: 0; font-size: 12px; }
@@ -163,6 +163,7 @@ label { display: flex; flex-direction: column; gap: 6px; font-weight: 500; font-
 .badge.active { background: #e6f5ec; color: var(--green); }
 .badge.sold { background: var(--amber-soft); color: #7a5600; }
 .badge.expired { background: #eceef2; color: var(--muted); }
+.product-report { display: flex; align-items: center; gap: 10px; margin-top: 12px; }
 
 /* Profile */
 .profile-head { display: flex; gap: 18px; align-items: center; margin-bottom: 20px; }
@@ -192,6 +193,11 @@ label { display: flex; flex-direction: column; gap: 6px; font-weight: 500; font-
 .admin-ban-title { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .admin-ban-title h2 { margin: 0; }
 .admin-users { display: flex; flex-direction: column; gap: 10px; }
+.admin-products { display: flex; flex-direction: column; gap: 10px; }
+.admin-product { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 16px; }
+.admin-product-info { display: flex; flex-direction: column; min-width: 0; }
+.admin-product-info > span { overflow-wrap: anywhere; }
+.admin-product-thumb { width: 64px; height: 64px; object-fit: cover; border-radius: 6px; }
 .admin-user { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 16px; }
 .admin-user-info { display: flex; flex-direction: column; min-width: 0; }
 .admin-user-info > span { overflow-wrap: anywhere; }
@@ -215,6 +221,7 @@ label { display: flex; flex-direction: column; gap: 6px; font-weight: 500; font-
   .admin-search { flex-direction: column; }
   .admin-user { align-items: flex-start; flex-direction: column; }
   .admin-user-actions { width: 100%; justify-content: space-between; }
+  .admin-product { align-items: flex-start; flex-direction: column; }
 }
 @media (prefers-reduced-motion: reduce) {
   .price { transition: none; }

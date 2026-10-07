@@ -14,6 +14,7 @@ const env = {
   smtpPass: process.env.SMTP_PASS,
   emailFrom: process.env.EMAIL_FROM,
   googleClientId: process.env.GOOGLE_CLIENT_ID,
+  imageKitPrivateKey: process.env.IMAGEKIT_PRIVATE_KEY,
 };
 
 if (!env.mongoUri) throw new Error('.env da MONGO_URI topilmadi');

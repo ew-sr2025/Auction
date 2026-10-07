@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const User = require('../models/User');
+const Product = require('../models/Product');
 const AppError = require('../utils/AppError');
 const asyncHandler = require('../utils/asyncHandler');
 const { banUserData, liftBan, releaseExpiredBans } = require('../services/banService');
@@ -35,6 +36,58 @@ exports.listUsers = asyncHandler(async (req, res) => {
   ]);
 
   res.json({ success: true, users, total, page, pages: Math.ceil(total / limit) });
+});
+
+exports.listProducts = asyncHandler(async (req, res) => {
+  const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+  const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 50));
+  const query = typeof req.query.q === 'string' ? req.query.q.trim() : '';
+  const filter = { isDeleted: false };
+
+  if (query) {
+    const search = new RegExp(escapeRegex(query), 'i');
+    const authors = await User.find({ username: search }).distinct('_id');
+    filter.$or = [{ title: search }, { author: { $in: authors } }];
+  }
+
+  const [products, total] = await Promise.all([
+    Product.find(filter)
+      .select('title images author status currentPrice reporters createdAt')
+      .populate('author', 'username firstName lastName')
+      .sort({ createdAt: -1 })
+      .skip((page - 1) * limit)
+      .limit(limit)
+      .lean(),
+    Product.countDocuments(filter),
+  ]);
+
+  res.json({
+    success: true,
+    products: products.map(({ reporters = [], ...product }) => ({
+      ...product,
+      reportCount: reporters.length,
+    })),
+    total,
+    page,
+    pages: Math.ceil(total / limit),
+  });
+});
+
+exports.removeProduct = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  if (!mongoose.isValidObjectId(id)) throw new AppError("Noto'g'ri ID");
+
+  const product = await Product.findOne({ _id: id, isDeleted: false });
+  if (!product) throw new AppError('Mahsulot topilmadi', 404);
+  await product.softDelete();
+
+  const io = req.app.get('io');
+  if (io) {
+    io.to('feed').to(`product:${product._id}`).emit('product:removed', {
+      productId: product._id,
+    });
+  }
+  res.json({ success: true });
 });
 
 exports.setUserBan = asyncHandler(async (req, res) => {

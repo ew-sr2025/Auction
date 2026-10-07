@@ -22,7 +22,7 @@ export default function Home() {
       setError('');
       try {
         const { data } = await api.get('/products', {
-          params: { q: query || undefined, sort, page: pageToLoad, limit: 12 },
+        params: { q: query || undefined, sort, page: pageToLoad, limit: 20 },
         });
         setItems((prev) => (replace ? data.items : [...prev, ...data.items]));
         setPage(data.page);
@@ -114,7 +114,7 @@ export default function Home() {
       {loading && <p className="muted">Yuklanmoqda...</p>}
       {!loading && page < pages && (
         <div className="center">
-          <button className="btn" onClick={() => load(page + 1, false)}>Yana ko'rsatish</button>
+          <button className="btn" onClick={() => load(page + 1, false)}>Keyingi 20 ta mahsulot</button>
         </div>
       )}
     </>

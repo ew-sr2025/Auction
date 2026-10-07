@@ -21,6 +21,7 @@ export default function ProductDetail() {
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [busy, setBusy] = useState(false);
+  const [reportBusy, setReportBusy] = useState(false);
   const [conversations, setConversations] = useState([]);
   const [chatBuyerId, setChatBuyerId] = useState('');
   const [messages, setMessages] = useState([]);
@@ -205,6 +206,29 @@ export default function ProductDetail() {
     }
   };
 
+  const reportProduct = async () => {
+    setReportBusy(true);
+    setError('');
+    setNotice('');
+    try {
+      const { data } = await api.post(`/products/${id}/report`);
+      if (data.deleted) {
+        navigate('/');
+        return;
+      }
+      setProduct((current) => current && ({
+        ...current,
+        reportCount: data.reportCount,
+        hasReported: true,
+      }));
+      setNotice(data.message);
+    } catch (e) {
+      setError(errMsg(e));
+    } finally {
+      setReportBusy(false);
+    }
+  };
+
   const sendMessage = async (e) => {
     e.preventDefault();
     setChatError('');
@@ -241,7 +265,7 @@ export default function ProductDetail() {
             <div className="thumbs">
               {imgs.map((src, i) => (
                 <button key={src} className={i === img ? 'on' : ''} onClick={() => setImg(i)}>
-                  <img src={src} alt="" />
+                  <img src={assetUrl(src)} alt="" />
                 </button>
               ))}
             </div>
@@ -290,6 +314,23 @@ export default function ProductDetail() {
               {product.bidCount > 0 && (
                 <button className="btn primary" onClick={accept}>Sotildi deb belgilash</button>
               )}
+            </div>
+          )}
+          {user && !isAuthor && (
+            <div className="product-report">
+              <button
+                type="button"
+                className="btn"
+                disabled={reportBusy || product.hasReported}
+                onClick={reportProduct}
+              >
+                {reportBusy
+                  ? 'Yuborilmoqda...'
+                  : product.hasReported
+                    ? 'Xabar berildi'
+                    : 'Mahsulot haqida xabar berish'}
+              </button>
+              <span className="muted small">{product.reportCount || 0}/5 ta xabar</span>
             </div>
           )}
 

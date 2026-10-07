@@ -63,6 +63,7 @@ ishlatadi.
 | SMTP_PASS | SMTP paroli yoki ilova paroli |
 | EMAIL_FROM | yuboruvchi email manzili |
 | GOOGLE_CLIENT_ID | Google OAuth web client ID (backend token tekshiruvi uchun) |
+| IMAGEKIT_PRIVATE_KEY | ImageKit server-side upload private key (`backend/.env` va hosting secrets ichida saqlang) |
 
 Nomlar boshqacha bo'lsa, `backend/src/config/env.js` ni moslang.
 Ro'yxatdan o'tishda emailga 6 xonali tasdiqlash kodi yuboriladi. Kod 10 daqiqa
@@ -81,6 +82,15 @@ Vite serverini qayta ishga tushiring yoki production buildni yangilang.
 Google tasdiqlagan email avval ro'yxatdan o'tgan bo'lsa, shu hisobga kiradi;
 yangi bo'lsa, akkaunt avtomatik yaratiladi.
 
+Yangi mahsulot rasmlari va avatarlar ImageKit'ga yuklanadi, MongoDB'da esa
+ImageKit URL saqlanadi. ImageKit dashboard'dan private key oling va uni
+`backend/.env` faylida `IMAGEKIT_PRIVATE_KEY` nomi bilan yoki production
+hostingdagi environment variable sifatida sozlang. Private key'ni frontendga,
+repositoryga yoki ochiq chatga qo'ymang. Sozlama bo'lmasa rasm yuklash
+endpointi aniq sozlama xatosini qaytaradi. Oldin serverning `/uploads/`
+manzilida turgan rasmlar avtomatik ko'chirilmaydi; mavjud URL'lar o'sha
+serverdagi fayllar bor ekan, eski usulda ko'rsatilaveradi.
+
 ## Qoidalar (backend/src/config/constants.js)
 
 - Minimal boshlang'ich narx: 50 000 so'm
@@ -93,7 +103,8 @@ yangi bo'lsa, akkaunt avtomatik yaratiladi.
 ## Administrator
 
 `admin` roli bor foydalanuvchi navigatsiyadagi **Admin panel** orqali
-foydalanuvchilarni qidirishi, bloklashi va blokdan chiqarishi mumkin. Blok
+foydalanuvchilarni qidirishi, bloklashi va blokdan chiqarishi, shuningdek
+mahsulotlar bo‘limidan istalgan mahsulotni darhol o‘chirishi mumkin. Blok
 vaqtinchalik (soat yoki kun miqdorini admin kiritadi) yoki cheksiz bo'lishi,
 sabab esa ixtiyoriy yozilishi mumkin. Muddati tugagan blok avtomatik bekor
 bo'ladi. Ban paytida foydalanuvchining mahsulotlari yashiriladi, faol
@@ -103,6 +114,11 @@ ban davrida taklif bergan faol auksionlarda eski takliflar nizoni oldini olish
 uchun yashirin qoladi. Tugagan yoki sotilgan auksionlar o'zgarmaydi. Admin API
 faqat `admin` roli uchun ochiq; administrator akkauntlarini paneldan bloklab
 bo'lmaydi.
+
+Tizimga kirgan foydalanuvchi mahsulot sahifasidan bir marta shikoyat yuborishi
+mumkin. Har bir noyob foydalanuvchi shikoyati mahsulot limitiga bittadan
+qo‘shadi; 5 ta shikoyatga yetganda mahsulot soft-delete qilinadi. Shikoyat
+mahsulot muallifini 5 kunga avtomatik bloklaydi (admin muallif bundan mustasno).
 
 ## API
 
@@ -115,12 +131,14 @@ bo'lmaydi.
 | POST | /api/auth/login | identifier (username yoki email), password |
 | GET | /api/auth/me | joriy foydalanuvchi |
 | GET | /api/admin/users | administrator: foydalanuvchilar ro'yxati (`page`, `limit`, `q`) |
+| GET | /api/admin/products | administrator: o‘chirilmagan mahsulotlar va shikoyat soni (`page`, `limit`, `q`) |
+| DELETE | /api/admin/products/:id | administrator: mahsulotni darhol soft-delete qilish |
 | PATCH | /api/admin/users/:id/ban | administrator: `{ "isBanned": false }` bilan blokdan chiqarish; bloklashda `isBanned: true`, `durationType: "temporary"/"permanent"`, vaqtinchalik uchun `duration` va `durationUnit: "hours"/"days"`, ixtiyoriy `reason` |
 | PUT | /api/users/me | profil: firstName, lastName, username, bio, phone, avatar (multipart) |
 | GET | /api/products | faol mahsulotlar (q, sort, page, limit) |
 | GET | /api/products/mine | mening mahsulotlarim (faol va nofaol) |
 | POST | /api/products | mahsulot joylash (telefon majburiy, multipart, images) |
-| PUT | /api/products/:id | mahsulotni tahrirlash: title, description, durationDays, startingPrice (faqat birinchi taklif yo'q bo'lsa), images, removeImages (URL MongoDB'dan o'chadi, fayl diskda qoladi) |
+| PUT | /api/products/:id | mahsulotni tahrirlash: title, description, durationDays, startingPrice (faqat birinchi taklif yo'q bo'lsa), images va removeImages (URL MongoDB'dan olib tashlanadi, ImageKit fayli qoladi) |
 | GET | /api/products/:id | mahsulot va takliflar tarixi |
 | GET | /api/products/:id/messages | xaridorning o'z suhbati yoki muallif uchun `?buyerId=...` |
 | GET | /api/products/:id/conversations | mahsulot muallifining xaridorlar bilan suhbatlari |
@@ -129,7 +147,7 @@ bo'lmaydi.
 | POST | /api/products/:id/reactivate | qayta faollashtirish |
 | DELETE | /api/products/:id | o'chirish (soft) |
 | POST | /api/products/:id/ban-buyer | Muallif: mahsulotga kirishni ma'lum foydalanuvchidan man etish (body: { buyerId, reason }) — agar foydalanuvchi 5 ta mahsulotdan bloklansa, avtomatik global block (10 kun) qo'llanadi |
-| POST | /api/products/:id/report | Foydalanuvchi mahsulotni hisobot qiladi; 5 ta mustaqil hisobot bo'lsa mahsulot soft-delete qilinadi va muallif 5 kunlik bloklanadi |
+| POST | /api/products/:id/report | Foydalanuvchi mahsulot haqida bir marta xabar beradi; 5 ta noyob xabarda mahsulot soft-delete qilinib, muallif 5 kunga bloklanadi |
 
 ## Socket.io hodisalari
 

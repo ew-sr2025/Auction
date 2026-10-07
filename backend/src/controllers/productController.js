@@ -3,7 +3,7 @@ const Product = require('../models/Product');
 const Bid = require('../models/Bid');
 const AppError = require('../utils/AppError');
 const asyncHandler = require('../utils/asyncHandler');
-const { removeFiles } = require('../utils/files');
+const { uploadImages } = require('../services/imageStorage');
 const { getBannedUserIds, releaseExpiredBans, banUserData } = require('../services/banService');
 const User = require('../models/User');
 const {
@@ -19,12 +19,17 @@ function present(doc, userId) {
   const obj = doc.toObject ? doc.toObject() : { ...doc };
   const idOf = (v) => (v && v._id ? String(v._id) : v ? String(v) : null);
   const me = userId ? String(userId) : null;
+  const reporters = obj.reporters || [];
 
   const isAuthor = me && idOf(obj.author) === me;
   const isWinner = me && idOf(obj.winner) === me;
   if (!isAuthor && !isWinner) delete obj.contactPhone;
 
   obj.minNextBid = obj.bidCount === 0 ? obj.startingPrice : obj.currentPrice + MIN_BID_STEP;
+  obj.reportCount = reporters.length;
+  obj.hasReported = Boolean(me && reporters.some((reporter) => idOf(reporter) === me));
+  delete obj.reporters;
+  delete obj.bannedUsers;
   delete obj.__v;
   return obj;
 }
@@ -57,38 +62,34 @@ const parseStringList = (value) => {
 
 // POST /api/products  (multipart: title, description, startingPrice, durationDays, images[])
 exports.createProduct = asyncHandler(async (req, res) => {
-  try {
-    const { title, description = '' } = req.body;
-    const startingPrice = Number(req.body.startingPrice);
-    const durationDays = req.body.durationDays
-      ? parseInt(req.body.durationDays, 10)
-      : DEFAULT_DURATION_DAYS;
+  const { title, description = '' } = req.body;
+  const startingPrice = Number(req.body.startingPrice);
+  const durationDays = req.body.durationDays
+    ? parseInt(req.body.durationDays, 10)
+    : DEFAULT_DURATION_DAYS;
 
-    if (!title || !title.trim()) throw new AppError('Mahsulot nomini kiriting');
-    if (!Number.isInteger(startingPrice) || startingPrice < MIN_START_PRICE) {
-      throw new AppError(`Minimal boshlang'ich narx ${MIN_START_PRICE} so'm`);
-    }
-    if (!Number.isInteger(durationDays) || durationDays < 1 || durationDays > 30) {
-      throw new AppError("Muddat 1 dan 30 kungacha bo'lishi kerak");
-    }
-
-    const product = await Product.create({
-      title,
-      description,
-      images: (req.files || []).map((f) => `/uploads/${f.filename}`),
-      author: req.user._id,
-      contactPhone: req.user.phone,
-      startingPrice,
-      durationDays,
-    });
-
-    await product.populate('author', AUTHOR_FIELDS);
-    emit(req, 'product:created', present(product, null));
-    res.status(201).json({ success: true, product: present(product, req.user._id) });
-  } catch (err) {
-    removeFiles(req.files);
-    throw err;
+  if (!title || !title.trim()) throw new AppError('Mahsulot nomini kiriting');
+  if (!Number.isInteger(startingPrice) || startingPrice < MIN_START_PRICE) {
+    throw new AppError(`Minimal boshlang'ich narx ${MIN_START_PRICE} so'm`);
   }
+  if (!Number.isInteger(durationDays) || durationDays < 1 || durationDays > 30) {
+    throw new AppError("Muddat 1 dan 30 kungacha bo'lishi kerak");
+  }
+
+  const images = await uploadImages(req.files, '/products');
+  const product = await Product.create({
+    title,
+    description,
+    images,
+    author: req.user._id,
+    contactPhone: req.user.phone,
+    startingPrice,
+    durationDays,
+  });
+
+  await product.populate('author', AUTHOR_FIELDS);
+  emit(req, 'product:created', present(product, null));
+  res.status(201).json({ success: true, product: present(product, req.user._id) });
 });
 
 // GET /api/products?q=&sort=&page=&limit=   (faqat faol mahsulotlar)
@@ -118,7 +119,7 @@ exports.listProducts = asyncHandler(async (req, res) => {
 
   const [items, total] = await Promise.all([
     Product.find(filter)
-      .select('-contactPhone -__v')
+      .select('-contactPhone -__v -reporters -bannedUsers')
       .sort(sort)
       .skip((page - 1) * limit)
       .limit(limit)
@@ -173,65 +174,58 @@ exports.getProduct = asyncHandler(async (req, res) => {
 
 // DELETE /api/products/:id  (soft delete: bazada qoladi)
 exports.updateProduct = asyncHandler(async (req, res) => {
-  const uploaded = (req.files || []).map((file) => `/uploads/${file.filename}`);
-  let saved = false;
-  try {
-    const product = await findOwned(req);
+  const product = await findOwned(req);
 
-    const removeSet = new Set(
-      parseStringList(req.body?.removeImages)
-        .map((img) => String(img).trim().replace(/\\/g, '/'))
-        .filter((img) => img.startsWith('/uploads/'))
-    );
-    const keepImages = product.images.filter((img) => !removeSet.has(img));
-    const totalImages = keepImages.length + uploaded.length;
-    if (totalImages > 5) {
-      throw new AppError("Mahsulotga maksimal 5 ta rasm bo'lishi mumkin");
-    }
-
-    if (req.body.title !== undefined) {
-      const title = String(req.body.title).trim();
-      if (!title) throw new AppError('Mahsulot nomini kiriting');
-      product.title = title;
-    }
-    if (req.body.description !== undefined) {
-      product.description = String(req.body.description).trim();
-    }
-    if (req.body.durationDays !== undefined) {
-      const durationDays = parseInt(req.body.durationDays, 10);
-      if (!Number.isInteger(durationDays) || durationDays < 1 || durationDays > 30) {
-        throw new AppError("Muddat 1 dan 30 kungacha bo'lishi kerak");
-      }
-      product.durationDays = durationDays;
-      if (product.status === 'active' && product.bidCount === 0) {
-        product.endsAt = new Date(Date.now() + product.durationDays * (24 * 60 * 60 * 1000));
-      }
-    }
-    if (req.body.startingPrice !== undefined) {
-      const startingPrice = Number(req.body.startingPrice);
-      if (!Number.isInteger(startingPrice) || startingPrice < MIN_START_PRICE) {
-        throw new AppError(`Minimal boshlang'ich narx ${MIN_START_PRICE} so'm`);
-      }
-      if (product.bidCount > 0) {
-        throw new AppError("Takliflar bo'lgani uchun narxni o'zgartirib bo'lmaydi", 409);
-      }
-      product.startingPrice = startingPrice;
-      product.currentPrice = startingPrice;
-    }
-
-    if (removeSet.size > 0 || uploaded.length > 0) {
-      product.images = [...keepImages, ...uploaded];
-    }
-
-    await product.save();
-    saved = true;
-    await product.populate('author', AUTHOR_FIELDS);
-    emit(req, 'product:updated', { productId: product._id }, product._id);
-    res.json({ success: true, product: present(product, req.user._id) });
-  } catch (err) {
-    if (!saved) removeFiles(req.files);
-    throw err;
+  const removeSet = new Set(
+    parseStringList(req.body?.removeImages)
+      .map((img) => String(img).trim().replace(/\\/g, '/'))
+  );
+  const keepImages = product.images.filter((img) => !removeSet.has(img));
+  const newFiles = req.files || [];
+  const totalImages = keepImages.length + newFiles.length;
+  if (totalImages > 5) {
+    throw new AppError("Mahsulotga maksimal 5 ta rasm bo'lishi mumkin");
   }
+
+  if (req.body.title !== undefined) {
+    const title = String(req.body.title).trim();
+    if (!title) throw new AppError('Mahsulot nomini kiriting');
+    product.title = title;
+  }
+  if (req.body.description !== undefined) {
+    product.description = String(req.body.description).trim();
+  }
+  if (req.body.durationDays !== undefined) {
+    const durationDays = parseInt(req.body.durationDays, 10);
+    if (!Number.isInteger(durationDays) || durationDays < 1 || durationDays > 30) {
+      throw new AppError("Muddat 1 dan 30 kungacha bo'lishi kerak");
+    }
+    product.durationDays = durationDays;
+    if (product.status === 'active' && product.bidCount === 0) {
+      product.endsAt = new Date(Date.now() + product.durationDays * (24 * 60 * 60 * 1000));
+    }
+  }
+  if (req.body.startingPrice !== undefined) {
+    const startingPrice = Number(req.body.startingPrice);
+    if (!Number.isInteger(startingPrice) || startingPrice < MIN_START_PRICE) {
+      throw new AppError(`Minimal boshlang'ich narx ${MIN_START_PRICE} so'm`);
+    }
+    if (product.bidCount > 0) {
+      throw new AppError("Takliflar bo'lgani uchun narxni o'zgartirib bo'lmaydi", 409);
+    }
+    product.startingPrice = startingPrice;
+    product.currentPrice = startingPrice;
+  }
+
+  if (removeSet.size > 0 || newFiles.length > 0) {
+    const uploaded = await uploadImages(newFiles, '/products');
+    product.images = [...keepImages, ...uploaded];
+  }
+
+  await product.save();
+  await product.populate('author', AUTHOR_FIELDS);
+  emit(req, 'product:updated', { productId: product._id }, product._id);
+  res.json({ success: true, product: present(product, req.user._id) });
 });
 
 exports.deleteProduct = asyncHandler(async (req, res) => {
@@ -344,50 +338,74 @@ exports.banBuyerFromProduct = asyncHandler(async (req, res) => {
   res.json({ success: true, product: present(product, req.user._id) });
 });
 
-// POST /api/products/:id/report  (user reports a product; if reporters >=5 => delete product + ban author 5 days)
+// POST /api/products/:id/report (five distinct reports soft-delete the product)
 exports.reportProduct = asyncHandler(async (req, res) => {
   const { id } = req.params;
   if (!mongoose.isValidObjectId(id)) throw new AppError("Noto'g'ri ID");
-  const product = await Product.findOne({ _id: id, isDeleted: false });
-  if (!product) throw new AppError('Mahsulot topilmadi', 404);
-  if (String(product.author) === String(req.user._id)) {
+  const existing = await Product.findOne({ _id: id, isDeleted: false }).select('author reporters');
+  if (!existing) throw new AppError('Mahsulot topilmadi', 404);
+  if (String(existing.author) === String(req.user._id)) {
     throw new AppError("O'zingizni hisobot qila olmaysiz", 409);
   }
 
-  product.reporters = product.reporters || [];
-  const already = product.reporters.some((r) => String(r) === String(req.user._id));
-  if (already) return res.json({ success: true, message: 'Siz allaqachon hisobot berdingiz' });
+  const product = await Product.findOneAndUpdate(
+    {
+      _id: id,
+      isDeleted: false,
+      reporters: { $ne: req.user._id },
+    },
+    { $addToSet: { reporters: req.user._id } },
+    { new: true }
+  ).select('reporters');
 
-  product.reporters.push(req.user._id);
-  await product.save();
-
-  // Escalation: if >=5 distinct reporters => soft-delete product and ban author for 5 days
-  if (product.reporters.length >= 5) {
-    product.isDeleted = true;
-    await product.save();
-
-    const author = await User.findById(product.author).select('_id role isBanned');
-    if (author && author.role !== 'admin' && !author.isBanned) {
-      const now = new Date();
-      const days = 5;
-      author.isBanned = true;
-      author.bannedAt = now;
-      author.bannedUntil = new Date(now.getTime() + days * 24 * 60 * 60 * 1000);
-      author.banReason = 'Mahsulotiga kamida 5 ta foydalanuvchi hisobot berdi';
-      await author.save();
-
-      req.app.get('io')?.in(`user:${author._id}`).disconnectSockets(true);
-      await banUserData(author._id, req.app.get('io'));
-      await User.updateOne(
-        { _id: author._id, isBanned: true, bannedAt: author.bannedAt },
-        { $set: { banDataProcessedAt: new Date() } }
-      );
-    }
-
-    // notify feed that product removed
-    emit(req, 'product:removed', { productId: product._id }, product._id);
-    return res.json({ success: true, message: 'Mahsulot o‘chirildi va muallifga jazo qo‘llanildi' });
+  if (!product) {
+    const latest = await Product.findById(id).select('isDeleted reporters');
+    if (!latest || latest.isDeleted) throw new AppError('Mahsulot topilmadi', 404);
+    return res.json({
+      success: true,
+      alreadyReported: true,
+      reportCount: latest.reporters.length,
+      message: 'Siz bu mahsulot haqida allaqachon xabar bergansiz',
+    });
   }
 
-  res.json({ success: true, message: 'Hisobot qabul qilindi', reporters: product.reporters.length });
+  if (product.reporters.length >= 5) {
+    const removed = await Product.findOneAndUpdate(
+      { _id: id, isDeleted: false },
+      { $set: { isDeleted: true, deletedAt: new Date() } },
+      { new: true }
+    ).select('_id');
+    if (removed) {
+      const author = await User.findById(existing.author).select('_id role isBanned');
+      if (author && author.role !== 'admin' && !author.isBanned) {
+        const now = new Date();
+        author.isBanned = true;
+        author.bannedAt = now;
+        author.bannedUntil = new Date(now.getTime() + 5 * 24 * 60 * 60 * 1000);
+        author.banReason = 'Mahsulot haqida 5 ta noyob foydalanuvchi xabar berdi';
+        author.banDataProcessedAt = null;
+        await author.save();
+        req.app.get('io')?.in(`user:${author._id}`).disconnectSockets(true);
+        await banUserData(author._id, req.app.get('io'));
+        await User.updateOne(
+          { _id: author._id, isBanned: true, bannedAt: now },
+          { $set: { banDataProcessedAt: new Date() } }
+        );
+      }
+
+      emit(req, 'product:removed', { productId: removed._id }, removed._id);
+      return res.json({
+        success: true,
+        deleted: true,
+        reportCount: product.reporters.length,
+        message: '5 ta foydalanuvchi xabar bergani uchun mahsulot o‘chirildi va muallif 5 kunga bloklandi',
+      });
+    }
+  }
+
+  res.json({
+    success: true,
+    reportCount: product.reporters.length,
+    message: 'Xabaringiz qabul qilindi',
+  });
 });
