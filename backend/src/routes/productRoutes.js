@@ -18,4 +18,8 @@ router.delete('/:id', protect, c.deleteProduct);
 router.post('/:id/reactivate', protect, c.reactivateProduct);
 router.post('/:id/accept', protect, c.acceptOffer);
 
+// Product moderation endpoints
+router.post('/:id/ban-buyer', protect, c.banBuyerFromProduct); // author bans a buyer from this product
+router.post('/:id/report', protect, c.reportProduct); // users report a product
+
 module.exports = router;

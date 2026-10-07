@@ -8,6 +8,7 @@ const { sendRegistrationCode } = require('../utils/email');
 const generateUsername = require('../utils/generateUsername');
 const { signToken } = require('../utils/token');
 const { googleClientId } = require('../config/env');
+const isUserBanned = require('../utils/banStatus');
 
 const googleClient = new OAuth2Client(googleClientId);
 
@@ -181,6 +182,9 @@ exports.googleLogin = asyncHandler(async (req, res) => {
     });
   }
 
+  if (await isUserBanned(user, req.app.get('io'))) {
+    throw new AppError('Akkauntingiz bloklangan', 403, 'USER_BANNED');
+  }
   sendAuth(res, user);
 });
 
@@ -231,6 +235,9 @@ exports.login = asyncHandler(async (req, res) => {
 
   if (!user || !(await user.comparePassword(password))) {
     throw new AppError("Username/email yoki parol noto'g'ri", 401);
+  }
+  if (await isUserBanned(user, req.app.get('io'))) {
+    throw new AppError('Akkauntingiz bloklangan', 403, 'USER_BANNED');
   }
 
   sendAuth(res, user);

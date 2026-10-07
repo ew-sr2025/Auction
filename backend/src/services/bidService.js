@@ -1,15 +1,22 @@
 const mongoose = require('mongoose');
 const Product = require('../models/Product');
 const Bid = require('../models/Bid');
+const User = require('../models/User');
 const AppError = require('../utils/AppError');
 const { MIN_BID_STEP } = require('../config/constants');
+const isUserBanned = require('../utils/banStatus');
+const { banUserData } = require('./banService');
 
 /**
  * Taklif berish. Atomik findOneAndUpdate ishlatilgani uchun
  * bir vaqtda kelgan ikki taklif bir-birini buzmaydi.
  */
-exports.placeBid = async (userId, productId, rawAmount) => {
+exports.placeBid = async (userId, productId, rawAmount, io) => {
   if (!mongoose.isValidObjectId(productId)) throw new AppError("Noto'g'ri mahsulot ID");
+  const bidder = await User.findById(userId).select('isBanned bannedUntil');
+  if (!bidder || await isUserBanned(bidder, io)) {
+    throw new AppError('Akkauntingiz bloklangan', 403, 'USER_BANNED');
+  }
   const amount = Number(rawAmount);
   if (!Number.isInteger(amount) || amount <= 0) throw new AppError("Taklif summasi noto'g'ri");
 
@@ -19,6 +26,7 @@ exports.placeBid = async (userId, productId, rawAmount) => {
       _id: productId,
       status: 'active',
       isDeleted: false,
+      banPausedAt: null,
       endsAt: { $gt: now },
       author: { $ne: userId },
       $or: [
@@ -46,6 +54,12 @@ exports.placeBid = async (userId, productId, rawAmount) => {
     amount,
     round: updated.round,
   });
+
+  const latestBidder = await User.findById(userId).select('isBanned bannedUntil');
+  if (!latestBidder || await isUserBanned(latestBidder, io)) {
+    await banUserData(userId, io);
+    throw new AppError('Akkauntingiz bloklangan', 403, 'USER_BANNED');
+  }
 
   return { product: updated, bid };
 };

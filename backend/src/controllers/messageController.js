@@ -4,10 +4,18 @@ const Message = require('../models/Message');
 const User = require('../models/User');
 const AppError = require('../utils/AppError');
 const asyncHandler = require('../utils/asyncHandler');
+const { getBannedUserIds, releaseExpiredBans } = require('../services/banService');
 
-async function findProduct(id) {
+async function findProduct(id, io) {
+  await releaseExpiredBans(io);
   if (!mongoose.isValidObjectId(id)) throw new AppError("Noto'g'ri mahsulot ID");
-  const product = await Product.findOne({ _id: id, isDeleted: false });
+  const bannedUserIds = await getBannedUserIds();
+  const product = await Product.findOne({
+    _id: id,
+    isDeleted: false,
+    banPausedAt: null,
+    author: { $nin: bannedUserIds },
+  });
   if (!product) throw new AppError('Mahsulot topilmadi', 404);
   return product;
 }
@@ -18,7 +26,7 @@ function chatRoom(productId, buyerId) {
 
 // GET /api/products/:id/messages?buyerId=...
 exports.listMessages = asyncHandler(async (req, res) => {
-  const product = await findProduct(req.params.id);
+  const product = await findProduct(req.params.id, req.app.get('io'));
   const isAuthor = String(product.author) === String(req.user._id);
   let buyerId;
 
@@ -28,6 +36,7 @@ exports.listMessages = asyncHandler(async (req, res) => {
     }
     buyerId = String(req.query.buyerId);
     if (buyerId === String(product.author)) throw new AppError('Suhbat topilmadi', 404);
+    if (await User.exists({ _id: buyerId, isBanned: true })) throw new AppError('Suhbat topilmadi', 404);
     const exists = await Message.exists({ product: product._id, buyer: buyerId });
     if (!exists) throw new AppError('Suhbat topilmadi', 404);
   } else {
@@ -48,13 +57,14 @@ exports.listMessages = asyncHandler(async (req, res) => {
 
 // GET /api/products/:id/conversations (muallif uchun barcha suhbatlar)
 exports.listConversations = asyncHandler(async (req, res) => {
-  const product = await findProduct(req.params.id);
+  const product = await findProduct(req.params.id, req.app.get('io'));
   if (String(product.author) !== String(req.user._id)) {
     throw new AppError('Bu amal faqat mahsulot egasi uchun', 403);
   }
 
+  const bannedUserIds = await getBannedUserIds();
   const latest = await Message.aggregate([
-    { $match: { product: product._id } },
+    { $match: { product: product._id, buyer: { $nin: bannedUserIds } } },
     { $sort: { createdAt: -1 } },
     { $group: { _id: '$buyer', message: { $first: '$$ROOT' } } },
     { $sort: { 'message.createdAt': -1 } },
@@ -77,7 +87,7 @@ exports.listConversations = asyncHandler(async (req, res) => {
 
 // POST /api/products/:id/messages  body: { text, buyerId? }
 exports.sendMessage = asyncHandler(async (req, res) => {
-  const product = await findProduct(req.params.id);
+  const product = await findProduct(req.params.id, req.app.get('io'));
   const isAuthor = String(product.author) === String(req.user._id);
   const text = typeof req.body.text === 'string' ? req.body.text.trim() : '';
   if (!text || text.length > 2000) {
@@ -91,6 +101,7 @@ exports.sendMessage = asyncHandler(async (req, res) => {
     }
     buyerId = String(req.body.buyerId);
     if (buyerId === String(product.author)) throw new AppError('Suhbat topilmadi', 404);
+    if (await User.exists({ _id: buyerId, isBanned: true })) throw new AppError('Suhbat topilmadi', 404);
     const exists = await Message.exists({ product: product._id, buyer: buyerId });
     if (!exists) throw new AppError('Suhbat topilmadi', 404);
   } else {

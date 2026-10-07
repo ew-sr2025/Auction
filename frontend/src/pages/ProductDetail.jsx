@@ -168,6 +168,7 @@ export default function ProductDetail() {
     socket.on('product:extended', onExtended);
     socket.on('product:ended', reload);
     socket.on('product:reactivated', reload);
+    socket.on('product:updated', reload);
     socket.on('product:removed', onRemoved);
 
     return () => {
@@ -177,6 +178,7 @@ export default function ProductDetail() {
       socket.off('product:extended', onExtended);
       socket.off('product:ended', reload);
       socket.off('product:reactivated', reload);
+      socket.off('product:updated', reload);
       socket.off('product:removed', onRemoved);
     };
   }, [socket, id, load, navigate]);

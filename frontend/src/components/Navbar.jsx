@@ -18,6 +18,7 @@ export default function Navbar() {
                 {user.avatar ? <img className="mini-avatar" src={assetUrl(user.avatar)} alt="" /> : null}
                 {user.username}
               </NavLink>
+              {user.role === 'admin' && <NavLink to="/admin">Admin panel</NavLink>}
               <button
                 className="btn ghost"
                 onClick={() => {

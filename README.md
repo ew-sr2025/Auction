@@ -90,6 +90,20 @@ yangi bo'lsa, akkaunt avtomatik yaratiladi.
 - Muallifda nofaol mahsulot qoladi, "Qayta faollashtirish" tugmasi bilan yangidan boshlanadi
 - O'chirish soft delete: bazada `isDeleted: true` bo'lib qoladi
 
+## Administrator
+
+`admin` roli bor foydalanuvchi navigatsiyadagi **Admin panel** orqali
+foydalanuvchilarni qidirishi, bloklashi va blokdan chiqarishi mumkin. Blok
+vaqtinchalik (soat yoki kun miqdorini admin kiritadi) yoki cheksiz bo'lishi,
+sabab esa ixtiyoriy yozilishi mumkin. Muddati tugagan blok avtomatik bekor
+bo'ladi. Ban paytida foydalanuvchining mahsulotlari yashiriladi, faol
+mahsulotlari pauza qilinadi va faol auksionlardagi takliflari yashirilib narx
+qayta hisoblanadi. Ban bekor bo'lsa mahsulotlar davom etadi; boshqa xaridorlar
+ban davrida taklif bergan faol auksionlarda eski takliflar nizoni oldini olish
+uchun yashirin qoladi. Tugagan yoki sotilgan auksionlar o'zgarmaydi. Admin API
+faqat `admin` roli uchun ochiq; administrator akkauntlarini paneldan bloklab
+bo'lmaydi.
+
 ## API
 
 | Metod | Yo'l | Izoh |
@@ -100,6 +114,8 @@ yangi bo'lsa, akkaunt avtomatik yaratiladi.
 | POST | /api/auth/google | Google ID tokenini tekshirib, tizimga kiritish yoki akkaunt yaratish |
 | POST | /api/auth/login | identifier (username yoki email), password |
 | GET | /api/auth/me | joriy foydalanuvchi |
+| GET | /api/admin/users | administrator: foydalanuvchilar ro'yxati (`page`, `limit`, `q`) |
+| PATCH | /api/admin/users/:id/ban | administrator: `{ "isBanned": false }` bilan blokdan chiqarish; bloklashda `isBanned: true`, `durationType: "temporary"/"permanent"`, vaqtinchalik uchun `duration` va `durationUnit: "hours"/"days"`, ixtiyoriy `reason` |
 | PUT | /api/users/me | profil: firstName, lastName, username, bio, phone, avatar (multipart) |
 | GET | /api/products | faol mahsulotlar (q, sort, page, limit) |
 | GET | /api/products/mine | mening mahsulotlarim (faol va nofaol) |
@@ -112,6 +128,8 @@ yangi bo'lsa, akkaunt avtomatik yaratiladi.
 | POST | /api/products/:id/accept | oxirgi taklifni qabul qilib, mahsulotni sotilgan deb belgilash |
 | POST | /api/products/:id/reactivate | qayta faollashtirish |
 | DELETE | /api/products/:id | o'chirish (soft) |
+| POST | /api/products/:id/ban-buyer | Muallif: mahsulotga kirishni ma'lum foydalanuvchidan man etish (body: { buyerId, reason }) — agar foydalanuvchi 5 ta mahsulotdan bloklansa, avtomatik global block (10 kun) qo'llanadi |
+| POST | /api/products/:id/report | Foydalanuvchi mahsulotni hisobot qiladi; 5 ta mustaqil hisobot bo'lsa mahsulot soft-delete qilinadi va muallif 5 kunlik bloklanadi |
 
 ## Socket.io hodisalari
 

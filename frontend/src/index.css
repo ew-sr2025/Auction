@@ -183,6 +183,22 @@ label { display: flex; flex-direction: column; gap: 6px; font-weight: 500; font-
 .my-title { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; font-weight: 600; font-size: 17px; }
 .my-actions { display: flex; flex-direction: column; gap: 8px; }
 
+/* Admin */
+.admin-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 20px; }
+.admin-head h1 { margin: 0; }
+.admin-head p { margin: 4px 0 0; }
+.admin-search { display: flex; gap: 8px; width: min(100%, 480px); }
+.admin-ban-form { margin: 0 0 20px; }
+.admin-ban-title { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.admin-ban-title h2 { margin: 0; }
+.admin-users { display: flex; flex-direction: column; gap: 10px; }
+.admin-user { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 16px; }
+.admin-user-info { display: flex; flex-direction: column; min-width: 0; }
+.admin-user-info > span { overflow-wrap: anywhere; }
+.admin-user-actions { display: flex; align-items: center; gap: 10px; flex: none; }
+.admin-ban-meta { display: flex; flex-direction: column; }
+.admin-pagination { display: flex; justify-content: center; align-items: center; gap: 16px; margin-top: 20px; }
+
 @media (max-width: 780px) {
   .detail { grid-template-columns: 1fr; }
   .chat-layout.seller-chat { grid-template-columns: 1fr; }
@@ -194,6 +210,11 @@ label { display: flex; flex-direction: column; gap: 6px; font-weight: 500; font-
   .row2 { grid-template-columns: 1fr; }
   .filters input { width: 100%; }
   .price.big { font-size: 32px; }
+}
+@media (max-width: 560px) {
+  .admin-search { flex-direction: column; }
+  .admin-user { align-items: flex-start; flex-direction: column; }
+  .admin-user-actions { width: 100%; justify-content: space-between; }
 }
 @media (prefers-reduced-motion: reduce) {
   .price { transition: none; }

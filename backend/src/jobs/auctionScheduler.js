@@ -1,5 +1,6 @@
 const Product = require('../models/Product');
 const { DAY, EXTENSION_DAYS, SCHEDULER_INTERVAL_MS } = require('../config/constants');
+const { releaseExpiredBans } = require('../services/banService');
 
 let running = false;
 
@@ -7,10 +8,12 @@ async function tick(io) {
   if (running) return;
   running = true;
   try {
+    await releaseExpiredBans(io);
     const now = new Date();
     const due = await Product.find({
       status: 'active',
       isDeleted: false,
+      banPausedAt: null,
       endsAt: { $lte: now },
     })
       .select('_id bidCount extensionUsed endsAt')

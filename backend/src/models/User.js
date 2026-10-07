@@ -25,6 +25,12 @@ const userSchema = new mongoose.Schema(
         "Username 3-20 belgi: lotin harflari, raqam va _ bo'lishi mumkin",
       ],
     },
+    role: { type: String, enum: ['user', 'admin'], default: 'user' },
+    isBanned: { type: Boolean, default: false },
+    bannedAt: { type: Date, default: null },
+    bannedUntil: { type: Date, default: null },
+    banReason: { type: String, default: '', maxlength: 500 },
+    banDataProcessedAt: { type: Date, default: null },
     password: { type: String, required: true, minlength: 6, select: false },
     birthDate: { type: Date },
 

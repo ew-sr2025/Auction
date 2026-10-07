@@ -30,6 +30,7 @@ const productSchema = new mongoose.Schema(
     durationDays: { type: Number, default: DEFAULT_DURATION_DAYS, min: 1, max: 30 },
     startsAt: { type: Date },
     endsAt: { type: Date },
+    banPausedAt: { type: Date, default: null },
     extensionUsed: { type: Boolean, default: false }, // +2 kun berilganmi
 
     // Holat: active -> sold (taklif bor edi / kelishildi) yoki expired (taklif bo'lmadi)
@@ -42,6 +43,16 @@ const productSchema = new mongoose.Schema(
     finalPrice: { type: Number, default: null },
     endedAt: { type: Date, default: null },
     round: { type: Number, default: 1 }, // reactivate qilinganda +1
+
+    bannedUsers: [
+      {
+        user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+        bannedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+        reason: { type: String, default: '', maxlength: 500 },
+        bannedAt: { type: Date, default: Date.now },
+      },
+    ],
+    reporters: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
 
     // Soft delete: author o'chirsa ham bazada qoladi
     isDeleted: { type: Boolean, default: false },

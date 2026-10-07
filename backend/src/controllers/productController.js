@@ -4,6 +4,8 @@ const Bid = require('../models/Bid');
 const AppError = require('../utils/AppError');
 const asyncHandler = require('../utils/asyncHandler');
 const { removeFiles } = require('../utils/files');
+const { getBannedUserIds, releaseExpiredBans, banUserData } = require('../services/banService');
+const User = require('../models/User');
 const {
   MIN_START_PRICE,
   MIN_BID_STEP,
@@ -91,10 +93,19 @@ exports.createProduct = asyncHandler(async (req, res) => {
 
 // GET /api/products?q=&sort=&page=&limit=   (faqat faol mahsulotlar)
 exports.listProducts = asyncHandler(async (req, res) => {
+  const io = req.app.get('io');
+  await releaseExpiredBans(io);
   const page = Math.max(1, parseInt(req.query.page, 10) || 1);
   const limit = Math.min(30, Math.max(1, parseInt(req.query.limit, 10) || 12));
 
-  const filter = { status: 'active', isDeleted: false, endsAt: { $gt: new Date() } };
+  const bannedUserIds = await getBannedUserIds();
+  const filter = {
+    status: 'active',
+    isDeleted: false,
+    banPausedAt: null,
+    author: { $nin: bannedUserIds },
+    endsAt: { $gt: new Date() },
+  };
   if (req.query.q) filter.title = { $regex: escapeRegex(String(req.query.q)), $options: 'i' };
 
   const sorts = {
@@ -121,7 +132,7 @@ exports.listProducts = asyncHandler(async (req, res) => {
 
 // GET /api/products/mine  (muallifning barcha mahsulotlari: faol va nofaol)
 exports.myProducts = asyncHandler(async (req, res) => {
-  const items = await Product.find({ author: req.user._id, isDeleted: false })
+  const items = await Product.find({ author: req.user._id, isDeleted: false, banPausedAt: null })
     .sort({ createdAt: -1 })
     .populate('lastBidder', 'username')
     .populate('winner', 'username firstName lastName phone');
@@ -131,16 +142,27 @@ exports.myProducts = asyncHandler(async (req, res) => {
 
 // GET /api/products/:id
 exports.getProduct = asyncHandler(async (req, res) => {
+  await releaseExpiredBans(req.app.get('io'));
   const { id } = req.params;
   if (!mongoose.isValidObjectId(id)) throw new AppError("Noto'g'ri ID");
 
-  const product = await Product.findOne({ _id: id, isDeleted: false })
+  const bannedUserIds = await getBannedUserIds();
+  const product = await Product.findOne({
+    _id: id,
+    isDeleted: false,
+    banPausedAt: null,
+    author: { $nin: bannedUserIds },
+  })
     .populate('author', AUTHOR_FIELDS)
     .populate('lastBidder', 'username')
     .populate('winner', 'username');
   if (!product) throw new AppError('Mahsulot topilmadi', 404);
 
-  const bids = await Bid.find({ product: product._id, round: product.round })
+  const bids = await Bid.find({
+    product: product._id,
+    round: product.round,
+    isBanHidden: { $ne: true },
+  })
     .sort({ amount: -1 })
     .limit(20)
     .populate('bidder', 'username avatar')
@@ -270,4 +292,102 @@ exports.acceptOffer = asyncHandler(async (req, res) => {
     product._id
   );
   res.json({ success: true, product });
+});
+
+// POST /api/products/:id/ban-buyer  (author bans a buyer from accessing this product)
+exports.banBuyerFromProduct = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const { buyerId, reason = '' } = req.body || {};
+  if (!mongoose.isValidObjectId(id) || !mongoose.isValidObjectId(buyerId)) {
+    throw new AppError("Noto'g'ri ID");
+  }
+  const product = await Product.findOne({ _id: id, isDeleted: false });
+  if (!product) throw new AppError('Mahsulot topilmadi', 404);
+  if (String(product.author) !== String(req.user._id)) {
+    throw new AppError("Bu amal faqat mahsulot egasi uchun", 403);
+  }
+  if (String(buyerId) === String(req.user._id)) throw new AppError("O'zingizni bloklay olmaysiz", 409);
+
+  const buyer = await User.findById(buyerId).select('_id role isBanned');
+  if (!buyer) throw new AppError('Foydalanuvchi topilmadi', 404);
+
+  const already = product.bannedUsers?.some((b) => String(b.user) === String(buyerId));
+  if (already) {
+    return res.json({ success: true, message: 'Foydalanuvchi allaqachon bloklangan', product: present(product, req.user._id) });
+  }
+
+  product.bannedUsers = product.bannedUsers || [];
+  product.bannedUsers.push({ user: buyerId, bannedBy: req.user._id, reason: String(reason).slice(0, 500) });
+  await product.save();
+
+  // After adding, check escalation: if buyer is banned from >=5 distinct products => global ban 10 days
+  const banCount = await Product.countDocuments({ 'bannedUsers.user': buyerId });
+  if (banCount >= 5 && !buyer.isBanned) {
+    const now = new Date();
+    const days = 10;
+    buyer.isBanned = true;
+    buyer.bannedAt = now;
+    buyer.bannedUntil = new Date(now.getTime() + days * 24 * 60 * 60 * 1000);
+    buyer.banReason = 'Bloklar soni ortishi: 5 ta mahsulotdan bloklandi';
+    await buyer.save();
+
+    // disconnect sockets and apply ban data effects
+    req.app.get('io')?.in(`user:${buyer._id}`).disconnectSockets(true);
+    await banUserData(buyer._id, req.app.get('io'));
+    await User.updateOne(
+      { _id: buyer._id, isBanned: true, bannedAt: buyer.bannedAt },
+      { $set: { banDataProcessedAt: new Date() } }
+    );
+  }
+
+  emit(req, 'product:updated', { productId: product._id }, product._id);
+  res.json({ success: true, product: present(product, req.user._id) });
+});
+
+// POST /api/products/:id/report  (user reports a product; if reporters >=5 => delete product + ban author 5 days)
+exports.reportProduct = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  if (!mongoose.isValidObjectId(id)) throw new AppError("Noto'g'ri ID");
+  const product = await Product.findOne({ _id: id, isDeleted: false });
+  if (!product) throw new AppError('Mahsulot topilmadi', 404);
+  if (String(product.author) === String(req.user._id)) {
+    throw new AppError("O'zingizni hisobot qila olmaysiz", 409);
+  }
+
+  product.reporters = product.reporters || [];
+  const already = product.reporters.some((r) => String(r) === String(req.user._id));
+  if (already) return res.json({ success: true, message: 'Siz allaqachon hisobot berdingiz' });
+
+  product.reporters.push(req.user._id);
+  await product.save();
+
+  // Escalation: if >=5 distinct reporters => soft-delete product and ban author for 5 days
+  if (product.reporters.length >= 5) {
+    product.isDeleted = true;
+    await product.save();
+
+    const author = await User.findById(product.author).select('_id role isBanned');
+    if (author && author.role !== 'admin' && !author.isBanned) {
+      const now = new Date();
+      const days = 5;
+      author.isBanned = true;
+      author.bannedAt = now;
+      author.bannedUntil = new Date(now.getTime() + days * 24 * 60 * 60 * 1000);
+      author.banReason = 'Mahsulotiga kamida 5 ta foydalanuvchi hisobot berdi';
+      await author.save();
+
+      req.app.get('io')?.in(`user:${author._id}`).disconnectSockets(true);
+      await banUserData(author._id, req.app.get('io'));
+      await User.updateOne(
+        { _id: author._id, isBanned: true, bannedAt: author.bannedAt },
+        { $set: { banDataProcessedAt: new Date() } }
+      );
+    }
+
+    // notify feed that product removed
+    emit(req, 'product:removed', { productId: product._id }, product._id);
+    return res.json({ success: true, message: 'Mahsulot o‘chirildi va muallifga jazo qo‘llanildi' });
+  }
+
+  res.json({ success: true, message: 'Hisobot qabul qilindi', reporters: product.reporters.length });
 });

@@ -7,6 +7,7 @@ const { verifyToken } = require('../utils/token');
 const { placeBid } = require('../services/bidService');
 const { clientUrl } = require('../config/env');
 const { MIN_BID_STEP } = require('../config/constants');
+const isUserBanned = require('../utils/banStatus');
 
 module.exports = function initSocket(httpServer) {
   const io = new Server(httpServer, {
@@ -20,8 +21,8 @@ module.exports = function initSocket(httpServer) {
     if (!token) return next();
     try {
       const { id } = verifyToken(token);
-      const user = await User.findById(id).select('_id username').lean();
-      if (!user) return next(new Error('Unauthorized'));
+      const user = await User.findById(id).select('_id username isBanned bannedUntil').lean();
+      if (!user || await isUserBanned(user, io)) return next(new Error('Unauthorized'));
       socket.user = user;
       next();
     } catch {
@@ -30,23 +31,49 @@ module.exports = function initSocket(httpServer) {
   });
 
   io.on('connection', (socket) => {
+    if (socket.user) socket.join(`user:${socket.user._id}`);
+
     // Umumiy lenta (mahsulotlar ro'yxati real vaqtda yangilanishi uchun)
     socket.on('feed:join', () => socket.join('feed'));
     socket.on('feed:leave', () => socket.leave('feed'));
 
     // Bitta mahsulot sahifasi
-    socket.on('product:join', (productId) => socket.join(`product:${productId}`));
+    socket.on('product:join', async (productId, ack) => {
+      const reply = typeof ack === 'function' ? ack : () => {};
+      try {
+        if (!mongoose.isValidObjectId(productId)) throw new Error("Noto'g'ri mahsulot ID");
+        const product = await Product.findOne({
+          _id: productId,
+          isDeleted: false,
+          banPausedAt: null,
+        }).select('author').lean();
+        if (!product) throw new Error('Mahsulot topilmadi');
+        const author = await User.findById(product.author).select('isBanned bannedUntil');
+        if (!author || await isUserBanned(author, io)) throw new Error('Mahsulot topilmadi');
+        socket.join(`product:${productId}`);
+        reply({ ok: true });
+      } catch (err) {
+        if (err.name !== 'Error' || !["Noto'g'ri mahsulot ID", 'Mahsulot topilmadi'].includes(err.message)) {
+          console.error('Mahsulot xonasiga ulanish xatosi:', err);
+        }
+        reply({ ok: false, message: err.message });
+      }
+    });
     socket.on('product:leave', (productId) => socket.leave(`product:${productId}`));
 
     socket.on('chat:join', async ({ productId, buyerId } = {}, ack) => {
       const reply = typeof ack === 'function' ? ack : () => {};
       try {
         if (!socket.user) throw new Error('Yozishmalar uchun tizimga kiring');
+        const member = await User.findById(socket.user._id).select('isBanned bannedUntil');
+        if (!member || await isUserBanned(member, io)) throw new Error('Akkauntingiz bloklangan');
         if (!mongoose.isValidObjectId(productId)) throw new Error("Noto'g'ri mahsulot ID");
         const product = await Product.findOne({ _id: productId, isDeleted: false })
-          .select('author')
+          .select('author banPausedAt')
           .lean();
-        if (!product) throw new Error('Mahsulot topilmadi');
+        if (!product || product.banPausedAt) throw new Error('Mahsulot topilmadi');
+        const author = await User.findById(product.author).select('isBanned bannedUntil');
+        if (!author || await isUserBanned(author, io)) throw new Error('Mahsulot topilmadi');
 
         const isAuthor = String(product.author) === String(socket.user._id);
         const conversationBuyerId = isAuthor ? buyerId : String(socket.user._id);
@@ -54,6 +81,8 @@ module.exports = function initSocket(httpServer) {
             String(conversationBuyerId) === String(product.author)) {
           throw new Error('Suhbat topilmadi');
         }
+        const buyer = await User.findById(conversationBuyerId).select('isBanned bannedUntil');
+        if (!buyer || await isUserBanned(buyer, io)) throw new Error('Suhbat topilmadi');
         if (isAuthor && !(await Message.exists({ product: productId, buyer: conversationBuyerId }))) {
           throw new Error('Suhbat topilmadi');
         }
@@ -76,11 +105,14 @@ module.exports = function initSocket(httpServer) {
       const reply = typeof ack === 'function' ? ack : () => {};
       try {
         if (!socket.user) throw new Error('Yozishmalar uchun tizimga kiring');
+        const member = await User.findById(socket.user._id).select('isBanned bannedUntil');
+        if (!member || await isUserBanned(member, io)) throw new Error('Akkauntingiz bloklangan');
         if (!mongoose.isValidObjectId(productId)) throw new Error("Noto'g'ri mahsulot ID");
         const product = await Product.findOne({
           _id: productId,
           author: socket.user._id,
           isDeleted: false,
+          banPausedAt: null,
         }).select('_id').lean();
         if (!product) throw new Error('Bu amal faqat mahsulot egasi uchun');
         socket.join(`chat:inbox:${productId}:${socket.user._id}`);
@@ -96,7 +128,7 @@ module.exports = function initSocket(httpServer) {
       try {
         if (!socket.user) throw Object.assign(new Error('Taklif berish uchun tizimga kiring'), { statusCode: 401 });
 
-        const { product, bid } = await placeBid(socket.user._id, productId, amount);
+        const { product, bid } = await placeBid(socket.user._id, productId, amount, io);
 
         const payload = {
           productId: product._id,

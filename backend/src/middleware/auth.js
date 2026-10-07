@@ -2,6 +2,7 @@ const User = require('../models/User');
 const AppError = require('../utils/AppError');
 const asyncHandler = require('../utils/asyncHandler');
 const { verifyToken } = require('../utils/token');
+const isUserBanned = require('../utils/banStatus');
 
 exports.protect = asyncHandler(async (req, _res, next) => {
   const header = req.headers.authorization || '';
@@ -17,10 +18,20 @@ exports.protect = asyncHandler(async (req, _res, next) => {
 
   const user = await User.findById(payload.id);
   if (!user) throw new AppError('Foydalanuvchi topilmadi', 401);
+  if (await isUserBanned(user, req.app.get('io'))) {
+    throw new AppError('Akkauntingiz bloklangan', 403, 'USER_BANNED');
+  }
 
   req.user = user;
   next();
 });
+
+exports.requireAdmin = (req, _res, next) => {
+  if (req.user?.role !== 'admin') {
+    return next(new AppError('Bu amal faqat administrator uchun', 403));
+  }
+  next();
+};
 
 // Post yaratishdan oldin ishlatiladi: telefon raqam majburiy
 exports.requirePhone = (req, _res, next) => {
@@ -42,7 +53,8 @@ exports.optionalAuth = async (req, _res, next) => {
     const header = req.headers.authorization || '';
     if (header.startsWith('Bearer ')) {
       const { id } = verifyToken(header.slice(7));
-      req.user = await User.findById(id);
+      const user = await User.findById(id);
+      if (user && !(await isUserBanned(user, req.app.get('io')))) req.user = user;
     }
   } catch {
     /* mehmon sifatida davom etadi */

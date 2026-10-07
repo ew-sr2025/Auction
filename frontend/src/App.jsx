@@ -6,6 +6,7 @@ import Login from './pages/Login.jsx';
 import Register from './pages/Register.jsx';
 import ProductDetail from './pages/ProductDetail.jsx';
 import Profile from './pages/Profile.jsx';
+import AdminPanel from './pages/AdminPanel.jsx';
 
 export default function App() {
   return (
@@ -22,6 +23,14 @@ export default function App() {
             element={
               <ProtectedRoute>
                 <Profile />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin"
+            element={
+              <ProtectedRoute>
+                <AdminPanel />
               </ProtectedRoute>
             }
           />

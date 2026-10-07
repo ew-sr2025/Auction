@@ -6,6 +6,8 @@ const bidSchema = new mongoose.Schema(
     bidder: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
     amount: { type: Number, required: true, min: 1 },
     round: { type: Number, default: 1 }, // mahsulotning qaysi davriga tegishli
+    isBanHidden: { type: Boolean, default: false },
+    banHiddenAt: { type: Date, default: null },
   },
   { timestamps: true }
 );
