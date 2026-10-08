@@ -20,7 +20,6 @@ exports.listNews = asyncHandler(async (req, res) => {
       banPausedAt: null,
       author: { $nin: bannedUserIds },
       status: 'sold',
-      winner: { $ne: null },
       $expr: { $gte: ['$finalPrice', { $multiply: ['$startingPrice', 1.5] }] },
     })
       .select('title images startingPrice finalPrice endedAt updatedAt')
@@ -86,12 +85,14 @@ exports.getStats = asyncHandler(async (req, res) => {
     Product.countDocuments({
       ...publicProductFilter,
       status: 'active',
-      endsAt: { $gt: now },
+      $or: [
+        { saleMode: 'fixed' },
+        { saleMode: { $in: ['auction', null] }, endsAt: { $gt: now } },
+      ],
     }),
     Product.countDocuments({
       ...publicProductFilter,
       status: 'sold',
-      winner: { $ne: null },
     }),
   ]);
 

@@ -111,7 +111,8 @@ exports.sendMessage = asyncHandler(async (req, res) => {
     }
   }
 
-  const canChatWhileActive = product.status === 'active' && product.endsAt > new Date();
+  const canChatWhileActive = product.status === 'active' &&
+    (product.saleMode === 'fixed' || !product.endsAt || product.endsAt > new Date());
   const canContinueAfterSale =
     product.status === 'sold' &&
     (isAuthor || String(product.winner) === String(req.user._id)) &&

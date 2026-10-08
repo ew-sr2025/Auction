@@ -5,7 +5,10 @@ const AppError = require('../utils/AppError');
 const asyncHandler = require('../utils/asyncHandler');
 const { uploadImages } = require('../services/imageStorage');
 const { getBannedUserIds, releaseExpiredBans, banUserData } = require('../services/banService');
-const { getCanonicalLocation } = require('../services/uzbekistanLocations');
+const {
+  getCanonicalLocation,
+  getLocationFilter,
+} = require('../services/uzbekistanLocations');
 const User = require('../models/User');
 const {
   MIN_START_PRICE,
@@ -64,9 +67,10 @@ const parseStringList = (value) => {
   return [];
 };
 const parseLocation = (regionId, districtId) => {
-  if (regionId === '' && districtId === '') return null;
-  if (regionId === undefined && districtId === undefined) return undefined;
-  if (regionId === undefined || districtId === undefined || regionId === '' || districtId === '') {
+  if (
+    regionId === undefined || districtId === undefined ||
+    regionId === '' || districtId === ''
+  ) {
     throw new AppError("Viloyat va tuman/shaharni to'liq tanlang");
   }
   return getCanonicalLocation(regionId, districtId);
@@ -75,16 +79,20 @@ const parseLocation = (regionId, districtId) => {
 // POST /api/products  (multipart: title, description, startingPrice, durationDays, images[])
 exports.createProduct = asyncHandler(async (req, res) => {
   const { title, description = '' } = req.body;
+  const saleMode = req.body.saleMode || 'fixed';
   const startingPrice = Number(req.body.startingPrice);
   const durationDays = req.body.durationDays
     ? parseInt(req.body.durationDays, 10)
     : DEFAULT_DURATION_DAYS;
 
   if (!title || !title.trim()) throw new AppError('Mahsulot nomini kiriting');
+  if (!['fixed', 'auction'].includes(saleMode)) {
+    throw new AppError("Savdo turini tanlang: oddiy yoki auksion");
+  }
   if (!Number.isInteger(startingPrice) || startingPrice < MIN_START_PRICE) {
     throw new AppError(`Minimal boshlang'ich narx ${MIN_START_PRICE} so'm`);
   }
-  if (!Number.isInteger(durationDays) || durationDays < 1 || durationDays > 30) {
+  if (saleMode === 'auction' && (!Number.isInteger(durationDays) || durationDays < 1 || durationDays > 30)) {
     throw new AppError("Muddat 1 dan 30 kungacha bo'lishi kerak");
   }
 
@@ -94,11 +102,12 @@ exports.createProduct = asyncHandler(async (req, res) => {
     title,
     description,
     images,
-    ...(location ? { location } : {}),
+    location,
     author: req.user._id,
+    saleMode,
     contactPhone: req.user.phone,
     startingPrice,
-    durationDays,
+    ...(saleMode === 'auction' ? { durationDays } : {}),
   });
 
   await product.populate('author', AUTHOR_FIELDS);
@@ -119,9 +128,35 @@ exports.listProducts = asyncHandler(async (req, res) => {
     isDeleted: false,
     banPausedAt: null,
     author: { $nin: bannedUserIds },
-    endsAt: { $gt: new Date() },
+    $or: [
+      { saleMode: 'fixed' },
+      { saleMode: { $in: ['auction', null] }, endsAt: { $gt: new Date() } },
+    ],
   };
   if (req.query.q) filter.title = { $regex: escapeRegex(String(req.query.q)), $options: 'i' };
+  Object.assign(filter, getLocationFilter(req.query.regionId, req.query.districtId) || {});
+
+  const minPrice = req.query.minPrice === undefined || req.query.minPrice === ''
+    ? undefined
+    : Number(req.query.minPrice);
+  const maxPrice = req.query.maxPrice === undefined || req.query.maxPrice === ''
+    ? undefined
+    : Number(req.query.maxPrice);
+  if (minPrice !== undefined && (!Number.isSafeInteger(minPrice) || minPrice < 0)) {
+    throw new AppError("Minimal narx filtri musbat son bo'lishi kerak");
+  }
+  if (maxPrice !== undefined && (!Number.isSafeInteger(maxPrice) || maxPrice < MIN_START_PRICE)) {
+    throw new AppError(`Maksimal narx filtri kamida ${MIN_START_PRICE} so'm bo'lishi kerak`);
+  }
+  if (minPrice !== undefined && maxPrice !== undefined && minPrice > maxPrice) {
+    throw new AppError("Minimal narx maksimal narxdan katta bo'lishi mumkin emas");
+  }
+  if (minPrice !== undefined || maxPrice !== undefined) {
+    filter.currentPrice = {
+      ...(minPrice !== undefined ? { $gte: minPrice } : {}),
+      ...(maxPrice !== undefined ? { $lte: maxPrice } : {}),
+    };
+  }
 
   const sorts = {
     newest: { createdAt: -1 },
@@ -196,8 +231,9 @@ exports.getProduct = asyncHandler(async (req, res) => {
 exports.updateProduct = asyncHandler(async (req, res) => {
   const product = await findOwned(req);
   if (req.body.locationRegionId !== undefined || req.body.locationDistrictId !== undefined) {
-    const location = parseLocation(req.body.locationRegionId, req.body.locationDistrictId);
-    product.location = location || undefined;
+    product.location = parseLocation(req.body.locationRegionId, req.body.locationDistrictId);
+  } else if (!product.location?.regionId || !product.location?.districtId) {
+    throw new AppError("Mahsulotni tahrirlash uchun viloyat va tuman/shaharni tanlang");
   }
 
   const removeSet = new Set(
@@ -225,7 +261,7 @@ exports.updateProduct = asyncHandler(async (req, res) => {
       throw new AppError("Muddat 1 dan 30 kungacha bo'lishi kerak");
     }
     product.durationDays = durationDays;
-    if (product.status === 'active' && product.bidCount === 0) {
+    if (product.saleMode === 'auction' && product.status === 'active' && product.bidCount === 0) {
       product.endsAt = new Date(Date.now() + product.durationDays * (24 * 60 * 60 * 1000));
     }
   }
@@ -284,12 +320,51 @@ exports.acceptOffer = asyncHandler(async (req, res) => {
   if (!mongoose.isValidObjectId(id)) throw new AppError("Noto'g'ri ID");
 
   const now = new Date();
+  const existing = await Product.findOne({
+    _id: id,
+    author: req.user._id,
+    isDeleted: false,
+    banPausedAt: null,
+    status: 'active',
+  });
+  if (existing?.saleMode === 'fixed') {
+    const finalPrice = Number(req.body?.finalPrice);
+    if (!Number.isSafeInteger(finalPrice) || finalPrice < 1) {
+      throw new AppError("Kelishilgan sotuv narxini to'g'ri kiriting");
+    }
+    const product = await Product.findOneAndUpdate(
+      {
+        _id: id,
+        author: req.user._id,
+        isDeleted: false,
+        banPausedAt: null,
+        status: 'active',
+        saleMode: 'fixed',
+        bidCount: 0,
+      },
+      { $set: { status: 'sold', winner: null, finalPrice, endedAt: now } },
+      { new: true }
+    );
+    if (!product) {
+      throw new AppError("Oddiy savdo mahsuloti endi sotilmayapti", 409);
+    }
+    emit(
+      req,
+      'product:ended',
+      { productId: product._id, status: 'sold', winner: null, finalPrice: product.finalPrice },
+      product._id
+    );
+    res.json({ success: true, product });
+    return;
+  }
+
   const product = await Product.findOneAndUpdate(
     {
       _id: id,
       author: req.user._id,
       isDeleted: false,
       status: 'active',
+      saleMode: { $in: ['auction', null] },
       endsAt: { $gt: now },
       bidCount: { $gt: 0 },
     },
@@ -298,7 +373,7 @@ exports.acceptOffer = asyncHandler(async (req, res) => {
   );
   if (!product) {
     throw new AppError(
-      "Sotilgan deb belgilash uchun mahsulot faol, muddati o'tmagan va kamida bitta taklifli bo'lishi kerak",
+      "Auksionni sotilgan deb belgilash uchun mahsulot faol, muddati o'tmagan va kamida bitta taklifli bo'lishi kerak",
       409
     );
   }

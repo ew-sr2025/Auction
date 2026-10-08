@@ -25,6 +25,7 @@ exports.placeBid = async (userId, productId, rawAmount, io) => {
     {
       _id: productId,
       status: 'active',
+      saleMode: { $in: ['auction', null] },
       isDeleted: false,
       banPausedAt: null,
       endsAt: { $gt: now },
@@ -43,6 +44,7 @@ exports.placeBid = async (userId, productId, rawAmount, io) => {
     const p = await Product.findById(productId).lean();
     if (!p || p.isDeleted) throw new AppError('Mahsulot topilmadi', 404);
     if (String(p.author) === String(userId)) throw new AppError("O'z mahsulotingizga taklif bera olmaysiz", 403);
+    if (p.saleMode === 'fixed') throw new AppError('Bu mahsulot oddiy savdoda, taklif berib bo‘lmaydi', 409, 'NOT_AN_AUCTION');
     if (p.status !== 'active' || p.endsAt <= now) throw new AppError('Auksion yakunlangan', 409, 'AUCTION_CLOSED');
     const min = p.bidCount === 0 ? p.startingPrice : p.currentPrice + MIN_BID_STEP;
     throw new AppError(`Taklif kamida ${min} so'm bo'lishi kerak`, 409, 'BID_TOO_LOW');

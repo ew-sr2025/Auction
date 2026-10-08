@@ -128,7 +128,8 @@ export default function Chats() {
   };
 
   const isWinner = product?.winner?._id === user?._id;
-  const active = product?.status === 'active' && new Date(product.endsAt) > new Date();
+  const active = product?.status === 'active' &&
+    (product.saleMode === 'fixed' || !product.endsAt || new Date(product.endsAt) > new Date());
   const canChat = Boolean(
     active ||
     (product?.status === 'sold' &&

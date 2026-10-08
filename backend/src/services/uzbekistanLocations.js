@@ -61,6 +61,32 @@ exports.getCanonicalLocation = (regionIdValue, districtIdValue) => {
   };
 };
 
+exports.getLocationFilter = (regionIdValue, districtIdValue) => {
+  const hasRegion = regionIdValue !== undefined && String(regionIdValue).trim() !== '';
+  const hasDistrict = districtIdValue !== undefined && String(districtIdValue).trim() !== '';
+  if (!hasRegion && !hasDistrict) return null;
+
+  const regionId = hasRegion ? Number(regionIdValue) : null;
+  const districtId = hasDistrict ? Number(districtIdValue) : null;
+  if (
+    (hasRegion && !Number.isSafeInteger(regionId)) ||
+    (hasDistrict && !Number.isSafeInteger(districtId))
+  ) {
+    throw new AppError("Viloyat yoki tuman/shahar filtri noto'g'ri");
+  }
+  if (hasRegion && !regionById.has(regionId)) {
+    throw new AppError("Viloyat filtri ro'yxatda topilmadi");
+  }
+  const district = hasDistrict ? districtById.get(districtId) : null;
+  if (hasDistrict && (!district || (hasRegion && district.regionId !== regionId))) {
+    throw new AppError("Tuman/shahar tanlangan viloyatga mos emas");
+  }
+  return {
+    ...(hasRegion ? { 'location.regionId': regionId } : {}),
+    ...(hasDistrict ? { 'location.districtId': districtId } : {}),
+  };
+};
+
 const fields = ['county', 'city_district', 'municipality', 'district', 'city', 'town', 'village'];
 const isCityField = (field) => ['city', 'town', 'village'].includes(field);
 

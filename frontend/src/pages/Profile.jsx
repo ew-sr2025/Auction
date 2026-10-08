@@ -122,18 +122,24 @@ function MyProducts({ goCreate }) {
                 <span className={`badge ${p.status}`}>{STATUS_LABEL[p.status]}</span>
               </div>
               <div>
-                {p.bidCount > 0 ? 'Oxirgi taklif' : "Boshlang'ich narx"}: <strong>{fmtPrice(p.currentPrice)}</strong>
+                {p.saleMode === 'fixed'
+                  ? 'Sotish narxi'
+                  : p.bidCount > 0 ? 'Oxirgi taklif' : "Boshlang'ich narx"}: <strong>{fmtPrice(p.currentPrice)}</strong>
                 {p.lastBidder && p.status === 'active' && <span className="muted"> · @{p.lastBidder.username}</span>}
               </div>
               {p.status === 'active' ? (
-                <div className="muted small">Tugashiga: <Countdown endsAt={p.endsAt} /> ({fmtDate(p.endsAt)})</div>
-              ) : (
+                        p.saleMode === 'fixed'
+                          ? <div className="muted small">Oddiy savdo · muddat cheklanmagan</div>
+                          : <div className="muted small">Auksion tugashiga: <Countdown endsAt={p.endsAt} /> ({fmtDate(p.endsAt)})</div>
+                      ) : (
                 <div className="muted small">Tugagan: {p.endedAt ? fmtDate(p.endedAt) : fmtDate(p.endsAt)}</div>
               )}
-              {p.status === 'sold' && p.winner && (
+              {p.status === 'sold' && (
                 <div className="alert ok">
-                  Kelishilgan narx: <strong>{fmtPrice(p.finalPrice)}</strong> · Xaridor: {fullName(p.winner)} (@{p.winner.username})
-                  {p.winner.phone && <> · Tel: <strong>{p.winner.phone}</strong></>}
+                  Kelishilgan narx: <strong>{fmtPrice(p.finalPrice)}</strong>
+                  {p.winner && <> · Xaridor: {fullName(p.winner)} (@{p.winner.username})
+                    {p.winner.phone && <> · Tel: <strong>{p.winner.phone}</strong></>}
+                  </>}
                 </div>
               )}
             </div>
@@ -141,7 +147,16 @@ function MyProducts({ goCreate }) {
               <button type="button" className="btn accent" onClick={() => setEditing(p)}>
                 Tahrirlash
               </button>
-              {p.status === 'active' && p.bidCount > 0 && (
+              {p.status === 'active' && p.saleMode === 'fixed' && (
+                <FixedSaleAction
+                  product={p}
+                  onSold={async () => {
+                    setEditing(null);
+                    await load();
+                  }}
+                />
+              )}
+              {p.status === 'active' && p.saleMode !== 'fixed' && p.bidCount > 0 && (
                 <button
                   className="btn primary"
                   onClick={() =>
@@ -176,7 +191,13 @@ function MyProducts({ goCreate }) {
 
 function CreateProduct({ goEdit, done }) {
   const { user } = useAuth();
-  const [f, setF] = useState({ title: '', description: '', startingPrice: '5000', durationDays: '5' });
+  const [f, setF] = useState({
+    title: '',
+    description: '',
+    startingPrice: '5000',
+    durationDays: '2',
+    saleMode: 'fixed',
+  });
   const [location, setLocation] = useState(null);
   const [files, setFiles] = useState([]);
   const [error, setError] = useState('');
@@ -196,14 +217,16 @@ function CreateProduct({ goEdit, done }) {
   const submit = async (e) => {
     e.preventDefault();
     setError('');
+    if (!location) {
+      setError("Mahsulot joylashuvi uchun viloyat va tuman/shaharni tanlang.");
+      return;
+    }
     setBusy(true);
     try {
       const fd = new FormData();
       Object.entries(f).forEach(([k, v]) => fd.append(k, v));
-      if (location) {
-        fd.append('locationRegionId', String(location.regionId));
-        fd.append('locationDistrictId', String(location.districtId));
-      }
+      fd.append('locationRegionId', String(location.regionId));
+      fd.append('locationDistrictId', String(location.districtId));
       files.forEach((file) => fd.append('images', file));
       await api.post('/products', fd);
       done();
@@ -228,20 +251,31 @@ function CreateProduct({ goEdit, done }) {
       </label>
       <div className="row2">
         <label>
-          Boshlang'ich narx (so'm, kamida 50 000)
-          <input type="number" min={5000} step={1000} value={f.startingPrice} onChange={set('startingPrice')} required />
-        </label>
-        <label>
-          Muddat
-          <select value={f.durationDays} onChange={set('durationDays')}>
-            {[1, 3, 5, 7, 10, 14, 30].map((d) => (
-              <option key={d} value={d}>{d} kun</option>
-            ))}
+          Savdo turi
+          <select value={f.saleMode} onChange={set('saleMode')}>
+            <option value="fixed">Oddiy savdo (standart)</option>
+            <option value="auction">Auksion</option>
           </select>
         </label>
+        <label>
+          {f.saleMode === 'auction' ? "Boshlang'ich narx (so'm)" : "Sotish narxi (so'm)"}
+          <input type="number" min={5000} step={1000} value={f.startingPrice} onChange={set('startingPrice')} required />
+        </label>
       </div>
-      <p className="muted small">Hech kim taklif bermasa, muddat bir marta 2 kunga uzaytiriladi.</p>
-      <label>Mahsulot joylashuvi (ixtiyoriy)</label>
+      {f.saleMode === 'auction' && (
+        <>
+          <label>
+            Auksion muddati
+            <select value={f.durationDays} onChange={set('durationDays')}>
+              {[1, 3, 5, 7, 10, 14, 30].map((d) => (
+                <option key={d} value={d}>{d} kun</option>
+              ))}
+            </select>
+          </label>
+          <p className="muted small">Hech kim taklif bermasa, auksion bir marta 1 kunga uzaytiriladi.</p>
+        </>
+      )}
+      <label>Mahsulot joylashuvi (majburiy)</label>
       <LocationPicker value={location} onChange={setLocation} />
       <label>
         Rasmlar (5 tagacha, har biri 5MB gacha)
@@ -250,6 +284,66 @@ function CreateProduct({ goEdit, done }) {
       {files.length > 0 && <div className="muted small">{files.map((x) => x.name).join(', ')}</div>}
       <p className="muted small">Aloqa raqami: <strong>{user.phone}</strong></p>
       <button className="btn primary" disabled={busy}>{busy ? 'Joylanmoqda...' : 'Joylash'}</button>
+    </form>
+  );
+}
+
+function FixedSaleAction({ product, onSold }) {
+  const [editingPrice, setEditingPrice] = useState(false);
+  const [price, setPrice] = useState(String(product.startingPrice));
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  const submit = async (event) => {
+    event.preventDefault();
+    setError('');
+    setBusy(true);
+    try {
+      await api.post(`/products/${product._id}/accept`, { finalPrice: Number(price) });
+      await onSold();
+      setEditingPrice(false);
+    } catch (err) {
+      setError(errMsg(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (!editingPrice) {
+    return (
+      <button
+        type="button"
+        className="btn primary"
+        onClick={() => {
+          setPrice(String(product.startingPrice));
+          setEditingPrice(true);
+        }}
+      >
+        Sotildi deb belgilash
+      </button>
+    );
+  }
+
+  return (
+    <form className="fixed-sale-form" onSubmit={submit}>
+      <label>
+        Kelishilgan narx (so‘m)
+        <input
+          type="number"
+          min="1"
+          step="1"
+          value={price}
+          onChange={(event) => setPrice(event.target.value)}
+          required
+        />
+      </label>
+      {error && <div className="alert error">{error}</div>}
+      <button className="btn primary" disabled={busy}>
+        {busy ? 'Saqlanmoqda...' : 'Tasdiqlash'}
+      </button>
+      <button type="button" className="btn" onClick={() => setEditingPrice(false)}>
+        Bekor qilish
+      </button>
     </form>
   );
 }
@@ -272,14 +366,18 @@ function EditProduct({ product, onClose, onSaved }) {
   const submit = async (e) => {
     e.preventDefault();
     setError('');
+    if (!location) {
+      setError("Mahsulot joylashuvi uchun viloyat va tuman/shaharni tanlang.");
+      return;
+    }
     setBusy(true);
     try {
       const fd = new FormData();
       fd.append('title', f.title.trim());
       fd.append('description', f.description.trim());
       fd.append('durationDays', String(f.durationDays));
-      fd.append('locationRegionId', location ? String(location.regionId) : '');
-      fd.append('locationDistrictId', location ? String(location.districtId) : '');
+      fd.append('locationRegionId', String(location.regionId));
+      fd.append('locationDistrictId', String(location.districtId));
       if (canEditPrice) fd.append('startingPrice', String(f.startingPrice));
       removeImages.forEach((img) => fd.append('removeImages', img));
       files.forEach((file) => fd.append('images', file));
@@ -307,20 +405,22 @@ function EditProduct({ product, onClose, onSaved }) {
         </label>
         <div className="row2">
           <label>
-            Boshlang'ich narx (so'm)
+            {product.saleMode === 'fixed' ? "Sotish narxi (so'm)" : "Boshlang'ich narx (so'm)"}
             <input type="number" min={5000} step={1000} value={f.startingPrice} onChange={set('startingPrice')} disabled={!canEditPrice} required />
           </label>
-          <label>
-            Muddat (kun)
-            <select value={f.durationDays} onChange={set('durationDays')}>
-              {[1, 3, 5, 7, 10, 14, 30].map((d) => (
-                <option key={d} value={d}>{d} kun</option>
-              ))}
-            </select>
-          </label>
+          {product.saleMode !== 'fixed' && (
+            <label>
+              Muddat (kun)
+              <select value={f.durationDays} onChange={set('durationDays')}>
+                {[1, 3, 5, 7, 10, 14, 30].map((d) => (
+                  <option key={d} value={d}>{d} kun</option>
+                ))}
+              </select>
+            </label>
+          )}
         </div>
         {!canEditPrice && <p className="muted small">Takliflar bo'lgani uchun narxni o'zgartirib bo'lmaydi.</p>}
-        <label>Mahsulot joylashuvi (ixtiyoriy)</label>
+        <label>Mahsulot joylashuvi (majburiy)</label>
         <LocationPicker value={location} onChange={setLocation} />
         {product.images?.length > 0 && (
           <div>

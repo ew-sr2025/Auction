@@ -139,7 +139,8 @@ export default function ProductDetail() {
 
   if (!product) return error ? <div className="alert error">{error}</div> : <p className="muted">Yuklanmoqda...</p>;
 
-  const active = product.status === 'active' && new Date(product.endsAt) > new Date();
+  const isAuction = product.saleMode !== 'fixed';
+  const active = product.status === 'active' && (!isAuction || new Date(product.endsAt) > new Date());
   const canStartChat = active || (product.status === 'sold' && isWinner);
   const imgs = product.images || [];
 
@@ -177,35 +178,49 @@ export default function ProductDetail() {
 
         <div className="card bidbox">
           <div className="lot-price-label">
-            {product.bidCount > 0 ? `Oxirgi taklif (${product.bidCount} ta)` : "Boshlang'ich narx"}
+            {isAuction
+              ? product.bidCount > 0 ? `Oxirgi taklif (${product.bidCount} ta)` : "Boshlang'ich narx"
+              : 'Sotish narxi'}
           </div>
-          <PriceTicker value={product.currentPrice} big />
+          <PriceTicker
+            value={!isAuction && product.status === 'sold' ? product.finalPrice : product.currentPrice}
+            big
+          />
           {product.lastBidder && product.bidCount > 0 && (
             <div className="muted">Taklif egasi: @{product.lastBidder.username}</div>
           )}
 
-          <div className="bid-time">
-            <span className="muted">{active ? 'Tugashiga' : 'Holat'}</span>
-            {active ? <Countdown endsAt={product.endsAt} big /> : <span className={`badge ${product.status}`}>{STATUS_LABEL[product.status]}</span>}
-          </div>
-          <div className="muted small">Tugash vaqti: {fmtDate(product.endsAt)}</div>
-          {product.extensionUsed && active && (
-            <div className="muted small">Taklif tushmagani uchun muddat 2 kunga uzaytirilgan</div>
+          {isAuction ? (
+            <>
+              <div className="bid-time">
+                <span className="muted">{active ? 'Tugashiga' : 'Holat'}</span>
+                {active ? <Countdown endsAt={product.endsAt} big /> : <span className={`badge ${product.status}`}>{STATUS_LABEL[product.status]}</span>}
+              </div>
+              <div className="muted small">Tugash vaqti: {fmtDate(product.endsAt)}</div>
+            </>
+          ) : (
+            <div className="bid-time">
+              <span className="muted">Savdo turi</span>
+              <span className={`badge ${product.status}`}>{active ? 'Oddiy savdo' : STATUS_LABEL[product.status]}</span>
+            </div>
+          )}
+          {isAuction && product.extensionUsed && active && (
+            <div className="muted small">Taklif tushmagani uchun muddat 1 kunga uzaytirilgan</div>
           )}
 
-          {active && !isAuthor && user && (
+          {isAuction && active && !isAuthor && user && (
             <form className="bid-form" onSubmit={placeBid}>
               <input type="number" min={product.minNextBid} step="1000" value={amount} onChange={(e) => setAmount(e.target.value)} required />
               <button className="btn accent" disabled={busy || !socket}>Taklif berish</button>
               <div className="muted small">Kamida {fmtPrice(product.minNextBid)}</div>
             </form>
           )}
-          {active && !user && (
+          {isAuction && active && !user && (
             <p className="muted">
               Taklif berish uchun <Link to="/login" state={{ from: `/product/${id}` }} className="link">tizimga kiring</Link>.
             </p>
           )}
-          {active && isAuthor && (
+          {isAuction && active && isAuthor && (
             <div className="author-actions">
               <p className="muted small">Bu sizning mahsulotingiz.</p>
               {product.bidCount > 0 && (
@@ -266,19 +281,23 @@ export default function ProductDetail() {
           </>
         )}
 
-          <h2>Takliflar tarixi</h2>
-          {bids.length === 0 ? (
-            <p className="muted">Hali taklif berilmagan.</p>
-          ) : (
-            <ul className="bids">
-              {bids.map((b, i) => (
-                <li key={b._id} className={i === 0 ? 'top' : ''}>
-                  <span>@{b.bidder?.username}</span>
-                  <strong>{fmtPrice(b.amount)}</strong>
-                  <span className="muted small">{fmtDate(b.createdAt)}</span>
-                </li>
-              ))}
-            </ul>
+          {isAuction && (
+            <>
+              <h2>Takliflar tarixi</h2>
+              {bids.length === 0 ? (
+                <p className="muted">Hali taklif berilmagan.</p>
+              ) : (
+                <ul className="bids">
+                  {bids.map((b, i) => (
+                    <li key={b._id} className={i === 0 ? 'top' : ''}>
+                      <span>@{b.bidder?.username}</span>
+                      <strong>{fmtPrice(b.amount)}</strong>
+                      <span className="muted small">{fmtDate(b.createdAt)}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </>
           )}
         </div>
       </div>

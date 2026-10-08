@@ -96,13 +96,6 @@ export default function LocationPicker({ value, onChange }) {
     );
   };
 
-  const clearLocation = () => {
-    setRegionId('');
-    setDistrictId('');
-    setError('');
-    onChange(null);
-  };
-
   return (
     <div className="location-picker">
       {error && <div className="alert error">{error}</div>}
@@ -111,6 +104,8 @@ export default function LocationPicker({ value, onChange }) {
           Viloyat yoki shahar
           <select
             value={regionId}
+            required
+            aria-label="Viloyat yoki shahar"
             onChange={(event) => {
               setRegionId(event.target.value);
               setDistrictId('');
@@ -128,6 +123,8 @@ export default function LocationPicker({ value, onChange }) {
           Tuman yoki shahar
           <select
             value={districtId}
+            required
+            aria-label="Tuman yoki shahar"
             onChange={(event) => saveDistrict(event.target.value)}
             disabled={!regionId || loadingOptions}
           >
@@ -142,11 +139,6 @@ export default function LocationPicker({ value, onChange }) {
         <button type="button" className="btn" onClick={detectLocation} disabled={loadingGps || loadingOptions}>
           {loadingGps ? 'GPS aniqlanmoqda...' : 'GPS orqali hududni aniqlash'}
         </button>
-        {value && (
-          <button type="button" className="btn" onClick={clearLocation}>
-            Joylashuvni olib tashlash
-          </button>
-        )}
       </div>
       <p className="muted small">GPS aniqlanganda koordinatalar OpenStreetMap xizmatiga faqat tuman/shaharni topish uchun yuboriladi; saytda saqlanmaydi yoki ko‘rsatilmaydi.</p>
     </div>

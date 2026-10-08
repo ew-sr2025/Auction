@@ -12,6 +12,7 @@ async function tick(io) {
     const now = new Date();
     const due = await Product.find({
       status: 'active',
+      saleMode: { $in: ['auction', null] },
       isDeleted: false,
       banPausedAt: null,
       endsAt: { $lte: now },

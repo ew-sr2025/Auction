@@ -21,14 +21,22 @@ const productSchema = new mongoose.Schema(
         },
         { _id: false }
       ),
+      required: true,
       default: undefined,
     },
 
     author: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+    saleMode: {
+      type: String,
+      enum: ['fixed', 'auction'],
+      // Products created before sale modes existed were all auctions.
+      default: 'auction',
+      required: true,
+    },
     // post yaratilgan paytdagi aloqa raqami (profildan olinadi, majburiy)
     contactPhone: {
       type: String,
-      required: true,
+
       match: [PHONE_REGEX, "Telefon raqam noto'g'ri"],
     },
 
@@ -80,7 +88,9 @@ productSchema.pre('validate', function (next) {
   if (this.isNew) {
     this.currentPrice = this.startingPrice;
     this.startsAt = new Date();
-    this.endsAt = new Date(Date.now() + this.durationDays * DAY);
+    this.endsAt = this.saleMode === 'auction'
+      ? new Date(Date.now() + this.durationDays * DAY)
+      : null;
   }
   next();
 });
@@ -98,7 +108,9 @@ productSchema.methods.reactivate = function (durationDays) {
   this.endedAt = null;
   this.extensionUsed = false;
   this.startsAt = new Date();
-  this.endsAt = new Date(Date.now() + this.durationDays * DAY);
+  this.endsAt = this.saleMode === 'auction'
+    ? new Date(Date.now() + this.durationDays * DAY)
+    : null;
   return this.save();
 };
 

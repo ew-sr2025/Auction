@@ -93,10 +93,10 @@ serverdagi fayllar bor ekan, eski usulda ko'rsatilaveradi.
 
 ## Qoidalar (backend/src/config/constants.js)
 
-- Minimal boshlang'ich narx: 50 000 so'm
+- Minimal mahsulot/auksion narxi: 5 000 so'm
 - Har bir yangi taklif oldingisidan kamida 1 000 so'm ko'p
-- Standart muddat 5 kun; taklif bo'lmasa bir marta +2 kun
-- Muddat tugagach: taklif bor bo'lsa `sold`, yo'q bo'lsa `expired`
+- Auksion uchun standart muddat 2 kun; taklif bo'lmasa bir marta +1 kun
+- Auksion muddati tugagach: taklif bor bo'lsa `sold`, yo'q bo'lsa `expired`
 - Muallifda nofaol mahsulot qoladi, "Qayta faollashtirish" tugmasi bilan yangidan boshlanadi
 - O'chirish soft delete: bazada `isDeleted: true` bo'lib qoladi
 
@@ -120,11 +120,19 @@ mumkin. Har bir noyob foydalanuvchi shikoyati mahsulot limitiga bittadan
 qo‘shadi; 5 ta shikoyatga yetganda mahsulot soft-delete qilinadi. Shikoyat
 mahsulot muallifini 5 kunga avtomatik bloklaydi (admin muallif bundan mustasno).
 
+Yangi mahsulot oddiy savdada joylanadi; muallif xohlasa auksion turini tanlashi
+mumkin. Oddiy savdada auksion muddati va taklif berish bo‘lmaydi; sotuvchi
+xaridor bilan kelishgach, haqiqiy sotuv narxini kiritib, profilida mahsulotni
+sotilgan deb belgilaydi. Auksion esa takliflar va belgilangan muddat bilan
+ishlaydi.
+
 Mahsulot joylashda O‘zbekistonning 14 viloyati va 210 tuman/shaharidan
-joylashuvni tanlash ixtiyoriy. GPS ruxsati berilsa, koordinatalar OpenStreetMap
+joylashuvni majburiy tanlash kerak; server tanlangan ID'larni to‘plam bo‘yicha
+tekshiradi va bir-biriga mos kelishini talab qiladi. GPS ruxsati berilsa,
+koordinatalar OpenStreetMap
 Nominatim xizmatiga hududni aniqlash uchun bir martalik yuboriladi, lekin
 saqlanmaydi. Mahsulotda faqat viloyat va tuman/shahar nomlari saqlanib,
-ko‘rsatiladi. Joylashuvni tahrirlash yoki olib tashlash mumkin.
+ko‘rsatiladi. Joylashuvni tahrirlash mumkin; olib tashlab bo‘lmaydi.
 Hududlar ro‘yxati [MIMAXUZ Uzbekistan Regions Data](https://github.com/MIMAXUZ/uzbekistan-regions-data/tree/9f66e4129891744218e169e8a61c212ce9852208/JSON)
 ma’lumotlar to‘plamidan olingan; manba ayrim ma’lumotlarda tafovut bo‘lishi
 mumkinligini qayd etadi.
@@ -133,7 +141,7 @@ mumkinligini qayd etadi.
 
 Yuqori navigatsiyadagi **Sayt haqida** sahifasida platforma statistikasi
 ko‘rsatiladi. Ma’lumotlar `GET /api/site/stats` endpointidan olinadi:
-ro‘yxatdan o‘tgan foydalanuvchilar, e’lon qilingan mahsulotlar, faol auksionlar
+ro‘yxatdan o‘tgan foydalanuvchilar, e’lon qilingan mahsulotlar, faol savdolar
 va sotilgan deb belgilangan mahsulotlar soni. Sayt internetga 5-oktabr kuni
 chiqarilgan. Yangiliklar bo‘limida administrator yozgan e’lonlar hamda
 boshlang‘ich narxidan kamida 1,5 baravariga sotilgan mahsulotlar avtomatik
@@ -159,18 +167,18 @@ qo‘shishi yoki o‘chirishi mumkin.
 | DELETE | /api/admin/products/:id | administrator: mahsulotni darhol soft-delete qilish |
 | PATCH | /api/admin/users/:id/ban | administrator: `{ "isBanned": false }` bilan blokdan chiqarish; bloklashda `isBanned: true`, `durationType: "temporary"/"permanent"`, vaqtinchalik uchun `duration` va `durationUnit: "hours"/"days"`, ixtiyoriy `reason` |
 | PUT | /api/users/me | profil: firstName, lastName, username, bio, phone, avatar (multipart) |
-| GET | /api/products | faol mahsulotlar (q, sort, page, limit) |
+| GET | /api/products | faol mahsulotlar (`q`, `sort`, `page`, `limit`, `regionId`, `districtId`, `minPrice`, `maxPrice` filtrlari) |
 | GET | /api/products/mine | mening mahsulotlarim (faol va nofaol) |
 | GET | /api/products/locations | O‘zbekistonning viloyat, tuman va shahar ro‘yxati |
 | POST | /api/products/location/resolve | GPS `{ "latitude": 41.3, "longitude": 69.2 }` koordinatasidan tuman/shaharni aniqlash (auth talab qiladi, koordinata saqlanmaydi) |
-| POST | /api/products | mahsulot joylash (telefon majburiy, multipart, images, ixtiyoriy `locationRegionId` va `locationDistrictId`) |
-| PUT | /api/products/:id | mahsulotni tahrirlash: title, description, durationDays, startingPrice (faqat birinchi taklif yo'q bo'lsa), images, removeImages va viloyat/tuman ID'lari (ikkala location maydonini bo'sh yuborib olib tashlash mumkin) |
+| POST | /api/products | mahsulot joylash (telefon va hudud majburiy, multipart, images, `locationRegionId`, `locationDistrictId`, `saleMode: "fixed"/"auction"`; savdo turi yuborilmasa oddiy savdo) |
+| PUT | /api/products/:id | mahsulotni tahrirlash: title, description, auksion uchun durationDays, startingPrice (faqat taklif yo'q bo'lsa), images, removeImages va majburiy viloyat/tuman ID'lari |
 | GET | /api/products/:id | mahsulot va takliflar tarixi |
 | GET | /api/chats/conversations | tizimga kirgan foydalanuvchining so‘nggi suhbatlari; har bir suhbatda tegishli mahsulot ko‘rsatiladi |
 | GET | /api/products/:id/messages | xaridorning o'z suhbati yoki muallif uchun `?buyerId=...` |
 | GET | /api/products/:id/conversations | mahsulot muallifining xaridorlar bilan suhbatlari |
 | POST | /api/products/:id/messages | xabar yuborish: `{ "text": "...", "buyerId": "..." }` (`buyerId` muallifdan yuborilganda kerak) |
-| POST | /api/products/:id/accept | oxirgi taklifni qabul qilib, mahsulotni sotilgan deb belgilash |
+| POST | /api/products/:id/accept | auksionda oxirgi taklifni qabul qilish; oddiy savdoda `{ "finalPrice": 100000 }` bilan sotilgan deb belgilash |
 | POST | /api/products/:id/reactivate | qayta faollashtirish |
 | DELETE | /api/products/:id | o'chirish (soft) |
 | POST | /api/products/:id/ban-buyer | Muallif: mahsulotga kirishni ma'lum foydalanuvchidan man etish (body: { buyerId, reason }) — agar foydalanuvchi 5 ta mahsulotdan bloklansa, avtomatik global block (10 kun) qo'llanadi |
