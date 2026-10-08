@@ -4,6 +4,7 @@ import api, { errMsg } from '../api';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useSocket } from '../context/SocketContext.jsx';
 import Countdown from '../components/Countdown.jsx';
+import LocationPicker from '../components/LocationPicker.jsx';
 import { assetUrl } from '../config.js';
 import { STATUS_LABEL, fmtDate, fmtPrice, fullName } from '../utils';
 
@@ -176,6 +177,7 @@ function MyProducts({ goCreate }) {
 function CreateProduct({ goEdit, done }) {
   const { user } = useAuth();
   const [f, setF] = useState({ title: '', description: '', startingPrice: '5000', durationDays: '5' });
+  const [location, setLocation] = useState(null);
   const [files, setFiles] = useState([]);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -198,6 +200,10 @@ function CreateProduct({ goEdit, done }) {
     try {
       const fd = new FormData();
       Object.entries(f).forEach(([k, v]) => fd.append(k, v));
+      if (location) {
+        fd.append('locationRegionId', String(location.regionId));
+        fd.append('locationDistrictId', String(location.districtId));
+      }
       files.forEach((file) => fd.append('images', file));
       await api.post('/products', fd);
       done();
@@ -235,6 +241,8 @@ function CreateProduct({ goEdit, done }) {
         </label>
       </div>
       <p className="muted small">Hech kim taklif bermasa, muddat bir marta 2 kunga uzaytiriladi.</p>
+      <label>Mahsulot joylashuvi (ixtiyoriy)</label>
+      <LocationPicker value={location} onChange={setLocation} />
       <label>
         Rasmlar (5 tagacha, har biri 5MB gacha)
         <input type="file" accept="image/*" multiple onChange={(e) => setFiles(Array.from(e.target.files).slice(0, 5))} />
@@ -255,6 +263,7 @@ function EditProduct({ product, onClose, onSaved }) {
   });
   const [removeImages, setRemoveImages] = useState([]);
   const [files, setFiles] = useState([]);
+  const [location, setLocation] = useState(product.location || null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const canEditPrice = product.bidCount === 0;
@@ -269,6 +278,8 @@ function EditProduct({ product, onClose, onSaved }) {
       fd.append('title', f.title.trim());
       fd.append('description', f.description.trim());
       fd.append('durationDays', String(f.durationDays));
+      fd.append('locationRegionId', location ? String(location.regionId) : '');
+      fd.append('locationDistrictId', location ? String(location.districtId) : '');
       if (canEditPrice) fd.append('startingPrice', String(f.startingPrice));
       removeImages.forEach((img) => fd.append('removeImages', img));
       files.forEach((file) => fd.append('images', file));
@@ -309,6 +320,8 @@ function EditProduct({ product, onClose, onSaved }) {
           </label>
         </div>
         {!canEditPrice && <p className="muted small">Takliflar bo'lgani uchun narxni o'zgartirib bo'lmaydi.</p>}
+        <label>Mahsulot joylashuvi (ixtiyoriy)</label>
+        <LocationPicker value={location} onChange={setLocation} />
         {product.images?.length > 0 && (
           <div>
             <div className="muted small">Mavjud rasmlar</div>

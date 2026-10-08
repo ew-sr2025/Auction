@@ -12,8 +12,10 @@ export default function Navbar() {
         <Link to="/" className="logo">Lot</Link>
         <nav className="nav-links">
           <NavLink to="/" end>Mahsulotlar</NavLink>
+          <NavLink to="/about">Sayt haqida</NavLink>
           {user ? (
             <>
+              <NavLink to="/chats">Chatlar</NavLink>
               <NavLink to="/profile">
                 {user.avatar ? <img className="mini-avatar" src={assetUrl(user.avatar)} alt="" /> : null}
                 {user.username}

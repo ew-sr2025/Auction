@@ -140,6 +140,8 @@ exports.sendMessage = asyncHandler(async (req, res) => {
   if (io) {
     io.to(chatRoom(product._id, buyerId)).emit('chat:new', payload);
     io.to(`chat:inbox:${product._id}:${product.author}`).emit('chat:inbox:new', payload);
+    io.to(`chat:inbox:${product.author}`).emit('chat:inbox:new', payload);
+    io.to(`chat:inbox:${buyerId}`).emit('chat:inbox:new', payload);
   }
 
   res.status(201).json({ success: true, message: payload });

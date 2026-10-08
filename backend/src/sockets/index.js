@@ -31,7 +31,10 @@ module.exports = function initSocket(httpServer) {
   });
 
   io.on('connection', (socket) => {
-    if (socket.user) socket.join(`user:${socket.user._id}`);
+    if (socket.user) {
+      socket.join(`user:${socket.user._id}`);
+      socket.join(`chat:inbox:${socket.user._id}`);
+    }
 
     // Umumiy lenta (mahsulotlar ro'yxati real vaqtda yangilanishi uchun)
     socket.on('feed:join', () => socket.join('feed'));

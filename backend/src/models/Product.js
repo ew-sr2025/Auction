@@ -11,6 +11,18 @@ const productSchema = new mongoose.Schema(
     title: { type: String, required: true, trim: true, maxlength: 120 },
     description: { type: String, default: '', maxlength: 2000 },
     images: [{ type: String }],
+    location: {
+      type: new mongoose.Schema(
+        {
+          regionId: { type: Number, required: true },
+          districtId: { type: Number, required: true },
+          regionName: { type: String, required: true },
+          districtName: { type: String, required: true },
+        },
+        { _id: false }
+      ),
+      default: undefined,
+    },
 
     author: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
     // post yaratilgan paytdagi aloqa raqami (profildan olinadi, majburiy)

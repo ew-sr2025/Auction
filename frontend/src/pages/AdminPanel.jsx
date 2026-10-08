@@ -15,6 +15,9 @@ export default function AdminPanel() {
   const [search, setSearch] = useState('');
   const [section, setSection] = useState('users');
   const [products, setProducts] = useState([]);
+  const [news, setNews] = useState([]);
+  const [newsTitle, setNewsTitle] = useState('');
+  const [newsBody, setNewsBody] = useState('');
   const [banTarget, setBanTarget] = useState(null);
   const [banDurationType, setBanDurationType] = useState('temporary');
   const [banDuration, setBanDuration] = useState('1');
@@ -58,10 +61,24 @@ export default function AdminPanel() {
     }
   }, [page, search]);
 
+  const loadNews = useCallback(async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const { data } = await api.get('/site/news');
+      setNews(data.news.filter((item) => item.type === 'announcement'));
+    } catch (err) {
+      setError(errMsg(err));
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     if (section === 'users') loadUsers();
-    else loadProducts();
-  }, [section, loadProducts, loadUsers]);
+    else if (section === 'products') loadProducts();
+    else loadNews();
+  }, [section, loadNews, loadProducts, loadUsers]);
 
   if (user?.role !== 'admin') return <Navigate to="/" replace />;
 
@@ -141,14 +158,47 @@ export default function AdminPanel() {
     }
   };
 
+  const submitNews = async (event) => {
+    event.preventDefault();
+    setError('');
+    setBusyId('news-form');
+    try {
+      const { data } = await api.post('/site/news', { title: newsTitle, body: newsBody });
+      setNews((current) => [data.news, ...current]);
+      setNewsTitle('');
+      setNewsBody('');
+    } catch (err) {
+      setError(errMsg(err));
+    } finally {
+      setBusyId('');
+    }
+  };
+
+  const removeNews = async (post) => {
+    if (!window.confirm(`“${post.title}” yangiligini o‘chirasizmi?`)) return;
+    setBusyId(post._id);
+    setError('');
+    try {
+      await api.delete(`/site/news/${post._id}`);
+      setNews((current) => current.filter((item) => item._id !== post._id));
+    } catch (err) {
+      setError(errMsg(err));
+    } finally {
+      setBusyId('');
+    }
+  };
+
   return (
     <section>
       <div className="admin-head">
         <div>
           <h1>Admin panel</h1>
-          <p className="muted">{section === 'users' ? 'Foydalanuvchilar' : 'Mahsulotlar'}: {total}</p>
+          <p className="muted">
+            {section === 'users' ? `Foydalanuvchilar: ${total}` :
+              section === 'products' ? `Mahsulotlar: ${total}` : 'Sayt yangiliklari'}
+          </p>
         </div>
-        <form className="admin-search" onSubmit={submitSearch}>
+        {section !== 'news' && <form className="admin-search" onSubmit={submitSearch}>
           <input
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
@@ -156,7 +206,7 @@ export default function AdminPanel() {
             aria-label={section === 'users' ? 'Foydalanuvchilarni qidirish' : 'Mahsulotlarni qidirish'}
           />
           <button className="btn primary">Qidirish</button>
-        </form>
+        </form>}
       </div>
 
       <div className="tabs admin-tabs">
@@ -166,8 +216,38 @@ export default function AdminPanel() {
         <button className={section === 'products' ? 'on' : ''} onClick={() => { setSection('products'); setPage(1); }}>
           Mahsulotlar
         </button>
+        <button className={section === 'news' ? 'on' : ''} onClick={() => { setSection('news'); setPage(1); }}>
+          Yangiliklar
+        </button>
       </div>
       {error && <div className="alert error">{error}</div>}
+      {section === 'news' && (
+        <form className="card form admin-news-form" onSubmit={submitNews}>
+          <h2>Yangi yangilik qo‘shish</h2>
+          <label>
+            Sarlavha
+            <input
+              value={newsTitle}
+              onChange={(event) => setNewsTitle(event.target.value)}
+              maxLength={120}
+              required
+            />
+          </label>
+          <label>
+            Matn
+            <textarea
+              value={newsBody}
+              onChange={(event) => setNewsBody(event.target.value)}
+              rows={4}
+              maxLength={2000}
+              required
+            />
+          </label>
+          <button className="btn primary" disabled={busyId === 'news-form'}>
+            {busyId === 'news-form' ? 'Saqlanmoqda...' : 'Yangilikni joylash'}
+          </button>
+        </form>
+      )}
       {banTarget && (
         <form className="card form admin-ban-form" onSubmit={submitBan}>
           <div className="admin-ban-title">
@@ -224,6 +304,28 @@ export default function AdminPanel() {
         <p className="empty">Foydalanuvchilar topilmadi.</p>
       ) : section === 'products' && products.length === 0 ? (
         <p className="empty">Mahsulotlar topilmadi.</p>
+      ) : section === 'news' && news.length === 0 ? (
+        <p className="empty">Hali admin yangiliklari yo‘q.</p>
+      ) : section === 'news' ? (
+        <div className="admin-news-list">
+          {news.map((post) => (
+            <article className="card admin-news-item" key={post._id}>
+              <div>
+                <strong>{post.title}</strong>
+                <p className="muted">{post.body}</p>
+                <span className="muted small">{fmtDate(post.createdAt)}</span>
+              </div>
+              <button
+                type="button"
+                className="btn danger"
+                disabled={busyId === post._id}
+                onClick={() => removeNews(post)}
+              >
+                {busyId === post._id ? 'O‘chirilmoqda...' : 'O‘chirish'}
+              </button>
+            </article>
+          ))}
+        </div>
       ) : section === 'products' ? (
         <div className="admin-products">
           {products.map((product) => (
@@ -291,7 +393,7 @@ export default function AdminPanel() {
         </div>
       )}
 
-      {pages > 1 && (
+      {section !== 'news' && pages > 1 && (
         <div className="admin-pagination">
           <button className="btn" disabled={page <= 1 || loading} onClick={() => setPage(page - 1)}>
             Oldingi

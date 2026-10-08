@@ -7,6 +7,8 @@ import Register from './pages/Register.jsx';
 import ProductDetail from './pages/ProductDetail.jsx';
 import Profile from './pages/Profile.jsx';
 import AdminPanel from './pages/AdminPanel.jsx';
+import Chats from './pages/Chats.jsx';
+import About from './pages/About.jsx';
 
 export default function App() {
   return (
@@ -15,9 +17,26 @@ export default function App() {
       <main className="container page">
         <Routes>
           <Route path="/" element={<Home />} />
+          <Route path="/about" element={<About />} />
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
           <Route path="/product/:id" element={<ProductDetail />} />
+          <Route
+            path="/chats"
+            element={
+              <ProtectedRoute>
+                <Chats />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/chats/:productId/:buyerId?"
+            element={
+              <ProtectedRoute>
+                <Chats />
+              </ProtectedRoute>
+            }
+          />
           <Route
             path="/profile"
             element={

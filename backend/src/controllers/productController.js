@@ -5,6 +5,7 @@ const AppError = require('../utils/AppError');
 const asyncHandler = require('../utils/asyncHandler');
 const { uploadImages } = require('../services/imageStorage');
 const { getBannedUserIds, releaseExpiredBans, banUserData } = require('../services/banService');
+const { getCanonicalLocation } = require('../services/uzbekistanLocations');
 const User = require('../models/User');
 const {
   MIN_START_PRICE,
@@ -21,6 +22,9 @@ function present(doc, userId) {
   const me = userId ? String(userId) : null;
   const reporters = obj.reporters || [];
 
+  if (!obj.location?.regionId || !obj.location?.districtId) {
+    delete obj.location;
+  }
   const isAuthor = me && idOf(obj.author) === me;
   const isWinner = me && idOf(obj.winner) === me;
   if (!isAuthor && !isWinner) delete obj.contactPhone;
@@ -59,6 +63,14 @@ const parseStringList = (value) => {
   if (typeof value === 'string') return value ? [value] : [];
   return [];
 };
+const parseLocation = (regionId, districtId) => {
+  if (regionId === '' && districtId === '') return null;
+  if (regionId === undefined && districtId === undefined) return undefined;
+  if (regionId === undefined || districtId === undefined || regionId === '' || districtId === '') {
+    throw new AppError("Viloyat va tuman/shaharni to'liq tanlang");
+  }
+  return getCanonicalLocation(regionId, districtId);
+};
 
 // POST /api/products  (multipart: title, description, startingPrice, durationDays, images[])
 exports.createProduct = asyncHandler(async (req, res) => {
@@ -76,11 +88,13 @@ exports.createProduct = asyncHandler(async (req, res) => {
     throw new AppError("Muddat 1 dan 30 kungacha bo'lishi kerak");
   }
 
+  const location = parseLocation(req.body.locationRegionId, req.body.locationDistrictId);
   const images = await uploadImages(req.files, '/products');
   const product = await Product.create({
     title,
     description,
     images,
+    ...(location ? { location } : {}),
     author: req.user._id,
     contactPhone: req.user.phone,
     startingPrice,
@@ -128,7 +142,13 @@ exports.listProducts = asyncHandler(async (req, res) => {
     Product.countDocuments(filter),
   ]);
 
-  res.json({ success: true, items, total, page, pages: Math.ceil(total / limit) });
+  res.json({
+    success: true,
+    items: items.map((item) => present(item, req.user?._id)),
+    total,
+    page,
+    pages: Math.ceil(total / limit),
+  });
 });
 
 // GET /api/products/mine  (muallifning barcha mahsulotlari: faol va nofaol)
@@ -175,6 +195,10 @@ exports.getProduct = asyncHandler(async (req, res) => {
 // DELETE /api/products/:id  (soft delete: bazada qoladi)
 exports.updateProduct = asyncHandler(async (req, res) => {
   const product = await findOwned(req);
+  if (req.body.locationRegionId !== undefined || req.body.locationDistrictId !== undefined) {
+    const location = parseLocation(req.body.locationRegionId, req.body.locationDistrictId);
+    product.location = location || undefined;
+  }
 
   const removeSet = new Set(
     parseStringList(req.body?.removeImages)

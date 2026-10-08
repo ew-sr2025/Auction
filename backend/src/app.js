@@ -39,9 +39,11 @@ app.use('/uploads', async (req, res, next) => {
 }, express.static(uploadDir));
 
 app.get('/api/health', (_req, res) => res.json({ ok: true }));
+app.use('/api/site', require('./routes/siteRoutes'));
 app.use('/api/auth', require('./routes/authRoutes'));
 app.use('/api/admin', require('./routes/adminRoutes'));
 app.use('/api/users', require('./routes/userRoutes'));
+app.use('/api/chats', require('./routes/chatRoutes'));
 app.use('/api/products', require('./routes/productRoutes'));
 
 app.use((_req, res) => res.status(404).json({ success: false, message: 'Topilmadi' }));

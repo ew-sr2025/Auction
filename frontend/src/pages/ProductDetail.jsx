@@ -6,7 +6,7 @@ import { useSocket } from '../context/SocketContext.jsx';
 import Countdown from '../components/Countdown.jsx';
 import PriceTicker from '../components/PriceTicker.jsx';
 import { assetUrl } from '../config.js';
-import { STATUS_LABEL, fmtDate, fmtPrice, fullName } from '../utils';
+import { STATUS_LABEL, fmtDate, fmtPrice } from '../utils';
 
 export default function ProductDetail() {
   const { id } = useParams();
@@ -22,12 +22,6 @@ export default function ProductDetail() {
   const [notice, setNotice] = useState('');
   const [busy, setBusy] = useState(false);
   const [reportBusy, setReportBusy] = useState(false);
-  const [conversations, setConversations] = useState([]);
-  const [chatBuyerId, setChatBuyerId] = useState('');
-  const [messages, setMessages] = useState([]);
-  const [chatText, setChatText] = useState('');
-  const [chatError, setChatError] = useState('');
-  const [chatBusy, setChatBusy] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -46,92 +40,6 @@ export default function ProductDetail() {
 
   const isAuthor = user && product?.author?._id === user._id;
   const isWinner = user && product?.winner?._id === user._id;
-  const productLoaded = Boolean(product);
-
-  const loadConversations = useCallback(async () => {
-    try {
-      const { data } = await api.get(`/products/${id}/conversations`);
-      setConversations(data.conversations);
-      setChatBuyerId((selected) =>
-        selected && data.conversations.some((c) => c.buyer?._id === selected)
-          ? selected
-          : data.conversations[0]?.buyer?._id || ''
-      );
-    } catch (e) {
-      setChatError(errMsg(e));
-    }
-  }, [id]);
-
-  useEffect(() => {
-    if (!user || !isAuthor) return;
-    loadConversations();
-  }, [user, isAuthor, loadConversations]);
-
-  const threadBuyerId = isAuthor ? chatBuyerId : user?._id;
-  const loadMessages = useCallback(async () => {
-    if (!user || !threadBuyerId) {
-      setMessages([]);
-      return;
-    }
-    try {
-      const { data } = await api.get(`/products/${id}/messages`, {
-        params: isAuthor ? { buyerId: threadBuyerId } : undefined,
-      });
-      setMessages(data.messages);
-      setChatError('');
-    } catch (e) {
-      setChatError(errMsg(e));
-    }
-  }, [id, isAuthor, threadBuyerId, user]);
-
-  useEffect(() => {
-    if (!productLoaded || !user || !threadBuyerId) {
-      setMessages([]);
-      return undefined;
-    }
-
-    const join = () => {
-      socket?.emit('chat:join', {
-        productId: id,
-        ...(isAuthor ? { buyerId: threadBuyerId } : {}),
-      }, (res) => {
-        if (!res?.ok) setChatError(res?.message || 'Suhbatga ulanib bo‘lmadi');
-      });
-      loadMessages();
-    };
-    join();
-    socket?.on('connect', join);
-
-    const onMessage = (message) => {
-      if (message.productId !== id || message.buyerId !== threadBuyerId) return;
-      setMessages((current) =>
-        current.some((item) => item._id === message._id) ? current : [...current, message]
-      );
-    };
-    socket?.on('chat:new', onMessage);
-
-    return () => {
-      socket?.emit('chat:leave', { productId: id, buyerId: threadBuyerId });
-      socket?.off('connect', join);
-      socket?.off('chat:new', onMessage);
-    };
-  }, [id, isAuthor, loadMessages, productLoaded, socket, threadBuyerId, user]);
-
-  useEffect(() => {
-    if (!productLoaded || !user || !isAuthor || !socket) return undefined;
-    const join = () => socket.emit('chat:watch', { productId: id });
-    const onInboxMessage = (message) => {
-      if (message.productId === id) loadConversations();
-    };
-    join();
-    socket.on('connect', join);
-    socket.on('chat:inbox:new', onInboxMessage);
-    return () => {
-      socket.off('connect', join);
-      socket.off('chat:inbox:new', onInboxMessage);
-    };
-  }, [id, isAuthor, loadConversations, productLoaded, socket, user]);
-
   useEffect(() => {
     if (!socket) return;
     const join = () => socket.emit('product:join', id);
@@ -229,29 +137,10 @@ export default function ProductDetail() {
     }
   };
 
-  const sendMessage = async (e) => {
-    e.preventDefault();
-    setChatError('');
-    setChatBusy(true);
-    try {
-      await api.post(`/products/${id}/messages`, {
-        text: chatText,
-        ...(isAuthor ? { buyerId: threadBuyerId } : {}),
-      });
-      setChatText('');
-      await loadMessages();
-      if (isAuthor) loadConversations();
-    } catch (e) {
-      setChatError(errMsg(e));
-    } finally {
-      setChatBusy(false);
-    }
-  };
-
   if (!product) return error ? <div className="alert error">{error}</div> : <p className="muted">Yuklanmoqda...</p>;
 
   const active = product.status === 'active' && new Date(product.endsAt) > new Date();
-  const canChat = active || (product.status === 'sold' && (isWinner || (isAuthor && chatBuyerId === product.winner?._id)));
+  const canStartChat = active || (product.status === 'sold' && isWinner);
   const imgs = product.images || [];
 
   return (
@@ -277,6 +166,14 @@ export default function ProductDetail() {
         <p className="muted">
           Muallif: <strong>{fullName(product.author)}</strong> (@{product.author?.username})
         </p>
+        {product.location && (
+          <div className="product-location card">
+            <div>
+              <strong>Joylashuv</strong>
+              <div className="muted small">{product.location.regionName}, {product.location.districtName}</div>
+            </div>
+          </div>
+        )}
 
         <div className="card bidbox">
           <div className="lot-price-label">
@@ -346,6 +243,20 @@ export default function ProductDetail() {
           {isWinner && product.contactPhone && (
             <div className="alert ok">Muallif bilan bog'lanish: <strong>{product.contactPhone}</strong></div>
           )}
+          {user && (
+            <div className="product-chat-link">
+              {isAuthor ? (
+                <Link className="btn" to="/chats">Chatlarni ochish</Link>
+              ) : canStartChat ? (
+                <Link className="btn" to={`/chats/${id}/${user._id}`}>Muallifga yozish</Link>
+              ) : null}
+            </div>
+          )}
+          {!user && active && (
+            <p className="product-chat-link muted">
+              Muallifga yozish uchun <Link to="/login" state={{ from: `/product/${id}` }} className="link">tizimga kiring</Link>.
+            </p>
+          )}
         </div>
 
         {product.description && (
@@ -372,81 +283,6 @@ export default function ProductDetail() {
         </div>
       </div>
 
-      <section className="product-chat card">
-        <div className="chat-heading">
-          <div>
-            <h2>Yozishmalar</h2>
-            <p className="muted small">Muallif va xaridor o‘rtasidagi shaxsiy suhbat.</p>
-          </div>
-        </div>
-        {!user ? (
-          <p className="muted">
-            Yozishmalar uchun <Link to="/login" state={{ from: `/product/${id}` }} className="link">tizimga kiring</Link>.
-          </p>
-        ) : (
-          <div className={`chat-layout ${isAuthor ? 'seller-chat' : ''}`}>
-            {isAuthor && (
-              <aside className="chat-conversations">
-                <h3>Xaridorlar</h3>
-                {conversations.length === 0 ? (
-                  <p className="muted small">Hozircha yozishma yo‘q.</p>
-                ) : conversations.map(({ buyer, message }) => (
-                  <button
-                    key={buyer._id}
-                    className={`chat-conversation ${chatBuyerId === buyer._id ? 'selected' : ''}`}
-                    onClick={() => setChatBuyerId(buyer._id)}
-                  >
-                    <strong>@{buyer.username}</strong>
-                    <span>{message.text}</span>
-                  </button>
-                ))}
-              </aside>
-            )}
-            <div className="chat-thread">
-              {!threadBuyerId ? (
-                <p className="muted">Xaridor yozganda suhbat shu yerda ko‘rinadi.</p>
-              ) : (
-                <>
-                  <div className="chat-messages" aria-live="polite">
-                    {messages.length === 0 ? (
-                      <p className="muted small">Suhbatni boshlash uchun xabar yozing.</p>
-                    ) : messages.map((message) => (
-                      <article
-                        key={message._id}
-                        className={`chat-message ${message.sender?._id === user._id ? 'mine' : ''}`}
-                      >
-                        <div className="chat-message-meta">
-                          <strong>@{message.sender?.username}</strong>
-                          <time>{fmtDate(message.createdAt)}</time>
-                        </div>
-                        <p>{message.text}</p>
-                      </article>
-                    ))}
-                  </div>
-                  {canChat ? (
-                    <form className="chat-form" onSubmit={sendMessage}>
-                      <textarea
-                        rows={2}
-                        maxLength={2000}
-                        value={chatText}
-                        onChange={(e) => setChatText(e.target.value)}
-                        placeholder="Xabaringizni yozing..."
-                        required
-                      />
-                      <button className="btn primary" disabled={chatBusy || !chatText.trim()}>
-                        {chatBusy ? 'Yuborilmoqda...' : 'Yuborish'}
-                      </button>
-                    </form>
-                  ) : (
-                    <p className="muted small">Bu mahsulot bo‘yicha yangi yozishmalar yopilgan.</p>
-                  )}
-                </>
-              )}
-              {chatError && <div className="alert error">{chatError}</div>}
-            </div>
-          </div>
-        )}
-      </section>
     </>
   );
 }

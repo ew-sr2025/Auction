@@ -1,10 +1,13 @@
 const router = require('express').Router();
 const c = require('../controllers/productController');
+const locations = require('../controllers/locationController');
 const messages = require('../controllers/messageController');
 const { protect, requirePhone, optionalAuth } = require('../middleware/auth');
 const upload = require('../middleware/upload');
 
 router.get('/', c.listProducts);
+router.get('/locations', locations.getLocations);
+router.post('/location/resolve', protect, locations.resolveGpsLocation);
 router.get('/mine', protect, c.myProducts);
 router.get('/:id/conversations', protect, messages.listConversations);
 router.get('/:id/messages', protect, messages.listMessages);
