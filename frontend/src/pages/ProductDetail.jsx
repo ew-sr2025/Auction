@@ -6,7 +6,7 @@ import { useSocket } from '../context/SocketContext.jsx';
 import Countdown from '../components/Countdown.jsx';
 import PriceTicker from '../components/PriceTicker.jsx';
 import { assetUrl } from '../config.js';
-import { STATUS_LABEL, fmtDate, fmtPrice } from '../utils';
+import { STATUS_LABEL, fmtDate, fmtPrice, fullName } from '../utils';
 
 export default function ProductDetail() {
   const { id } = useParams();
@@ -17,6 +17,7 @@ export default function ProductDetail() {
   const [product, setProduct] = useState(null);
   const [bids, setBids] = useState([]);
   const [img, setImg] = useState(0);
+  const [imageDirection, setImageDirection] = useState('next');
   const [amount, setAmount] = useState('');
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
@@ -143,18 +144,67 @@ export default function ProductDetail() {
   const active = product.status === 'active' && (!isAuction || new Date(product.endsAt) > new Date());
   const canStartChat = active || (product.status === 'sold' && isWinner);
   const imgs = product.images || [];
+  const showImage = (index) => {
+    if (imgs.length < 2 || index === img) return;
+    setImageDirection(index < img ? 'previous' : 'next');
+    setImg(index);
+  };
+  const moveImage = (direction) => {
+    if (imgs.length < 2) return;
+    setImageDirection(direction);
+    setImg((current) => (
+      direction === 'next'
+        ? (current + 1) % imgs.length
+        : (current - 1 + imgs.length) % imgs.length
+    ));
+  };
 
   return (
     <>
       <div className="detail">
         <div className="detail-gallery">
           <div className="detail-main-img">
-            {imgs[img] ? <img src={assetUrl(imgs[img])} alt={product.title} /> : <div className="no-img">Rasm yo'q</div>}
+            {imgs[img] ? (
+              <img
+                key={`${img}-${imgs[img]}`}
+                className={`detail-gallery-image ${imageDirection}`}
+                src={assetUrl(imgs[img])}
+                alt={`${product.title} — ${img + 1}-rasm`}
+              />
+            ) : <div className="no-img">Rasm yo‘q</div>}
+            {imgs.length > 1 && (
+              <>
+                <button
+                  type="button"
+                  className="gallery-arrow previous"
+                  aria-label="Oldingi rasm"
+                  onClick={() => moveImage('previous')}
+                >
+                  <span aria-hidden="true">‹</span>
+                </button>
+                <button
+                  type="button"
+                  className="gallery-arrow next"
+                  aria-label="Keyingi rasm"
+                  onClick={() => moveImage('next')}
+                >
+                  <span aria-hidden="true">›</span>
+                </button>
+                <span className="gallery-counter">{img + 1} / {imgs.length}</span>
+              </>
+            )}
           </div>
           {imgs.length > 1 && (
             <div className="thumbs">
               {imgs.map((src, i) => (
-                <button key={src} className={i === img ? 'on' : ''} onClick={() => setImg(i)}>
+                <button
+                  type="button"
+                  key={`${src}-${i}`}
+                  className={i === img ? 'on' : ''}
+                  aria-label={`${i + 1}-rasmni ko‘rish`}
+                  aria-current={i === img ? 'true' : undefined}
+                  onClick={() => showImage(i)}
+                >
                   <img src={assetUrl(src)} alt="" />
                 </button>
               ))}
