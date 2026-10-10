@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Navigate } from 'react-router-dom';
+import { Navigate, useNavigate } from 'react-router-dom';
 import api, { errMsg } from '../api';
 import { useAuth } from '../context/AuthContext.jsx';
 import { assetUrl } from '../config.js';
@@ -7,6 +7,7 @@ import { fmtDate, fullName } from '../utils';
 
 export default function AdminPanel() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [users, setUsers] = useState([]);
   const [total, setTotal] = useState(0);
   const [pages, setPages] = useState(1);
@@ -315,40 +316,46 @@ export default function AdminPanel() {
                 <p className="muted">{post.body}</p>
                 <span className="muted small">{fmtDate(post.createdAt)}</span>
               </div>
-              <button
-                type="button"
-                className="btn danger"
-                disabled={busyId === post._id}
-                onClick={() => removeNews(post)}
-              >
-                {busyId === post._id ? 'O‘chirilmoqda...' : 'O‘chirish'}
-              </button>
+              <div className="admin-item-actions">
+                <button type="button" className="btn" onClick={() => navigate(`/admin/edit/news/${post._id}`)}>Tahrirlash</button>
+                <button
+                  type="button"
+                  className="btn danger"
+                  disabled={busyId === post._id}
+                  onClick={() => removeNews(post)}
+                >
+                  {busyId === post._id ? 'O‘chirilmoqda...' : 'O‘chirish'}
+                </button>
+              </div>
             </article>
           ))}
         </div>
       ) : section === 'products' ? (
         <div className="admin-products">
           {products.map((product) => (
-            <article className="card admin-product" key={product._id}>
-              <div className="admin-product-info">
-                <strong>{product.title}</strong>
-                <span className="muted">@{product.author?.username || 'noma’lum muallif'}</span>
-                <span className="muted small">
-                  {product.status} · {fmtDate(product.createdAt)} · Xabarlar: {product.reportCount}/5
-                </span>
-              </div>
-              {product.images?.[0] && (
-                <img className="admin-product-thumb" src={assetUrl(product.images[0])} alt="" />
-              )}
-              <button
-                type="button"
-                className="btn danger"
-                disabled={busyId === product._id}
-                onClick={() => removeProduct(product)}
-              >
-                {busyId === product._id ? 'O‘chirilmoqda...' : 'Darhol ban berish / o‘chirish'}
-              </button>
-            </article>
+              <article className="card admin-product" key={product._id}>
+                <div className="admin-product-info">
+                  <strong>{product.title}</strong>
+                  <span className="muted">@{product.author?.username || 'noma’lum muallif'}</span>
+                  <span className="muted small">
+                    {product.status} · {fmtDate(product.createdAt)} · Xabarlar: {product.reportCount}/5
+                  </span>
+                </div>
+                {product.images?.[0] && (
+                  <img className="admin-product-thumb" src={assetUrl(product.images[0])} alt="" />
+                )}
+                <div className="admin-item-actions">
+                  <button type="button" className="btn" onClick={() => navigate(`/admin/edit/products/${product._id}`)}>Tahrirlash</button>
+                  <button
+                    type="button"
+                    className="btn danger"
+                    disabled={busyId === product._id}
+                    onClick={() => removeProduct(product)}
+                  >
+                    {busyId === product._id ? 'O‘chirilmoqda...' : 'Darhol ban berish / o‘chirish'}
+                  </button>
+                </div>
+              </article>
           ))}
         </div>
       ) : (
@@ -364,6 +371,7 @@ export default function AdminPanel() {
                   <span className="muted small">Ro‘yxatdan o‘tgan: {fmtDate(entry.createdAt)}</span>
                 </div>
                 <div className="admin-user-actions">
+                  <button type="button" className="btn" onClick={() => navigate(`/admin/edit/users/${entry._id}`)}>Tahrirlash</button>
                   <span className={`badge ${entry.isBanned ? 'expired' : 'active'}`}>
                     {entry.isBanned ? 'Bloklangan' : isAdmin ? 'Admin' : 'Faol'}
                   </span>

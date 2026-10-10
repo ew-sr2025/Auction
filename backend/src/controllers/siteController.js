@@ -69,6 +69,29 @@ exports.deleteNews = asyncHandler(async (req, res) => {
   res.json({ success: true });
 });
 
+exports.updateNews = asyncHandler(async (req, res) => {
+  if (!mongoose.isValidObjectId(req.params.id)) throw new AppError("Noto'g'ri ID", 400);
+  const title = typeof req.body.title === 'string' ? req.body.title.trim() : '';
+  const body = typeof req.body.body === 'string' ? req.body.body.trim() : '';
+  if (!title || title.length > 120) throw new AppError('Sarlavha 1 dan 120 belgigacha bo‘lishi kerak', 400);
+  if (!body || body.length > 2000) throw new AppError('Matn 1 dan 2000 belgigacha bo‘lishi kerak', 400);
+
+  const post = await News.findByIdAndUpdate(
+    req.params.id,
+    { $set: { title, body } },
+    { new: true, runValidators: true }
+  ).populate('author', 'username');
+  if (!post) throw new AppError('Yangilik topilmadi', 404);
+  res.json({ success: true, news: post });
+});
+
+exports.getNewsForEdit = asyncHandler(async (req, res) => {
+  if (!mongoose.isValidObjectId(req.params.id)) throw new AppError("Noto'g'ri ID", 400);
+  const post = await News.findById(req.params.id).populate('author', 'username');
+  if (!post) throw new AppError('Yangilik topilmadi', 404);
+  res.json({ success: true, news: post });
+});
+
 exports.getStats = asyncHandler(async (req, res) => {
   await releaseExpiredBans(req.app.get('io'));
   const bannedUserIds = await getBannedUserIds();

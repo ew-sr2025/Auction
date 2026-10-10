@@ -7,6 +7,7 @@ import Register from './pages/Register.jsx';
 import ProductDetail from './pages/ProductDetail.jsx';
 import Profile from './pages/Profile.jsx';
 import AdminPanel from './pages/AdminPanel.jsx';
+import AdminEditPage from './pages/AdminEditPage.jsx';
 import Chats from './pages/Chats.jsx';
 import About from './pages/About.jsx';
 
@@ -50,6 +51,14 @@ export default function App() {
             element={
               <ProtectedRoute>
                 <AdminPanel />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/edit/:type/:id"
+            element={
+              <ProtectedRoute>
+                <AdminEditPage />
               </ProtectedRoute>
             }
           />

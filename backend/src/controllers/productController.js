@@ -14,12 +14,13 @@ const {
   MIN_START_PRICE,
   MIN_BID_STEP,
   DEFAULT_DURATION_DAYS,
+  PHONE_REGEX,
 } = require('../config/constants');
 
 const AUTHOR_FIELDS = 'username firstName lastName avatar';
 
 // contactPhone faqat muallif va g'olibga ko'rinadi
-function present(doc, userId) {
+function present(doc, userId, isAdmin = false) {
   const obj = doc.toObject ? doc.toObject() : { ...doc };
   const idOf = (v) => (v && v._id ? String(v._id) : v ? String(v) : null);
   const me = userId ? String(userId) : null;
@@ -30,7 +31,7 @@ function present(doc, userId) {
   }
   const isAuthor = me && idOf(obj.author) === me;
   const isWinner = me && idOf(obj.winner) === me;
-  if (!isAuthor && !isWinner) delete obj.contactPhone;
+  if (!isAdmin && !isAuthor && !isWinner) delete obj.contactPhone;
 
   obj.minNextBid = obj.bidCount === 0 ? obj.startingPrice : obj.currentPrice + MIN_BID_STEP;
   obj.reportCount = reporters.length;
@@ -228,8 +229,14 @@ exports.getProduct = asyncHandler(async (req, res) => {
 });
 
 // DELETE /api/products/:id  (soft delete: bazada qoladi)
-exports.updateProduct = asyncHandler(async (req, res) => {
-  const product = await findOwned(req);
+async function updateProduct(req, res, allowAdmin = false) {
+  if (allowAdmin) {
+    if (!mongoose.isValidObjectId(req.params.id)) throw new AppError("Noto'g'ri ID");
+  }
+  const product = allowAdmin
+    ? await Product.findOne({ _id: req.params.id, isDeleted: false })
+    : await findOwned(req);
+  if (allowAdmin && !product) throw new AppError('Mahsulot topilmadi', 404);
   if (req.body.locationRegionId !== undefined || req.body.locationDistrictId !== undefined) {
     product.location = parseLocation(req.body.locationRegionId, req.body.locationDistrictId);
   } else if (!product.location?.regionId || !product.location?.districtId) {
@@ -254,6 +261,13 @@ exports.updateProduct = asyncHandler(async (req, res) => {
   }
   if (req.body.description !== undefined) {
     product.description = String(req.body.description).trim();
+  }
+  if (req.body.contactPhone !== undefined) {
+    const contactPhone = String(req.body.contactPhone).replace(/[\s()-]/g, '');
+    if (contactPhone && !PHONE_REGEX.test(contactPhone)) {
+      throw new AppError("Telefon raqam noto'g'ri");
+    }
+    product.contactPhone = contactPhone;
   }
   if (req.body.durationDays !== undefined) {
     const durationDays = parseInt(req.body.durationDays, 10);
@@ -285,8 +299,11 @@ exports.updateProduct = asyncHandler(async (req, res) => {
   await product.save();
   await product.populate('author', AUTHOR_FIELDS);
   emit(req, 'product:updated', { productId: product._id }, product._id);
-  res.json({ success: true, product: present(product, req.user._id) });
-});
+  res.json({ success: true, product: present(product, req.user._id, allowAdmin) });
+}
+
+exports.updateProduct = asyncHandler((req, res) => updateProduct(req, res));
+exports.adminUpdateProduct = asyncHandler((req, res) => updateProduct(req, res, true));
 
 exports.deleteProduct = asyncHandler(async (req, res) => {
   const product = await findOwned(req);

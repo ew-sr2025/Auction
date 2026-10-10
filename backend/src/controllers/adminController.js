@@ -4,6 +4,8 @@ const Product = require('../models/Product');
 const AppError = require('../utils/AppError');
 const asyncHandler = require('../utils/asyncHandler');
 const { banUserData, liftBan, releaseExpiredBans } = require('../services/banService');
+const { uploadImage } = require('../services/imageStorage');
+const { PHONE_REGEX } = require('../config/constants');
 
 const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
@@ -27,7 +29,7 @@ exports.listUsers = asyncHandler(async (req, res) => {
 
   const [users, total] = await Promise.all([
     User.find(filter)
-      .select('username firstName lastName email role isBanned bannedUntil banReason createdAt')
+      .select('username firstName lastName email phone bio avatar role isBanned bannedUntil banReason createdAt')
       .sort({ createdAt: -1 })
       .skip((page - 1) * limit)
       .limit(limit)
@@ -36,6 +38,15 @@ exports.listUsers = asyncHandler(async (req, res) => {
   ]);
 
   res.json({ success: true, users, total, page, pages: Math.ceil(total / limit) });
+});
+
+exports.getUser = asyncHandler(async (req, res) => {
+  if (!mongoose.isValidObjectId(req.params.id)) throw new AppError("Noto'g'ri ID");
+  const user = await User.findById(req.params.id)
+    .select('username firstName lastName email phone bio avatar role isBanned bannedUntil banReason createdAt')
+    .lean();
+  if (!user) throw new AppError('Foydalanuvchi topilmadi', 404);
+  res.json({ success: true, user });
 });
 
 exports.listProducts = asyncHandler(async (req, res) => {
@@ -52,7 +63,7 @@ exports.listProducts = asyncHandler(async (req, res) => {
 
   const [products, total] = await Promise.all([
     Product.find(filter)
-      .select('title images author status currentPrice reporters createdAt')
+      .select('title description images author status currentPrice startingPrice durationDays saleMode bidCount location contactPhone reporters createdAt')
       .populate('author', 'username firstName lastName')
       .sort({ createdAt: -1 })
       .skip((page - 1) * limit)
@@ -71,6 +82,62 @@ exports.listProducts = asyncHandler(async (req, res) => {
     page,
     pages: Math.ceil(total / limit),
   });
+});
+
+exports.getProduct = asyncHandler(async (req, res) => {
+  if (!mongoose.isValidObjectId(req.params.id)) throw new AppError("Noto'g'ri ID");
+  const product = await Product.findOne({ _id: req.params.id, isDeleted: false })
+    .select('title description images author status currentPrice startingPrice durationDays saleMode bidCount location contactPhone createdAt')
+    .populate('author', 'username firstName lastName')
+    .lean();
+  if (!product) throw new AppError('Mahsulot topilmadi', 404);
+  res.json({ success: true, product });
+});
+
+exports.updateUser = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  if (!mongoose.isValidObjectId(id)) throw new AppError("Noto'g'ri ID");
+  const user = await User.findById(id);
+  if (!user) throw new AppError('Foydalanuvchi topilmadi', 404);
+
+  const { firstName, lastName, username, email, phone, bio } = req.body || {};
+  if (firstName !== undefined) {
+    const value = String(firstName).trim();
+    if (!value || value.length > 50) throw new AppError("Ism 1 dan 50 belgigacha bo'lishi kerak");
+    user.firstName = value;
+  }
+  if (lastName !== undefined) {
+    const value = String(lastName).trim();
+    if (!value || value.length > 50) throw new AppError("Familya 1 dan 50 belgigacha bo'lishi kerak");
+    user.lastName = value;
+  }
+  if (username !== undefined) {
+    const normalized = String(username).trim().toLowerCase();
+    if (!/^[a-z0-9_]{3,20}$/.test(normalized)) {
+      throw new AppError("Username 3-20 belgi: lotin harflari, raqam va _ bo'lishi mumkin");
+    }
+    user.username = normalized;
+  }
+  if (email !== undefined) {
+    const normalized = String(email).trim().toLowerCase();
+    if (!/^\S+@\S+\.\S+$/.test(normalized)) throw new AppError("Email manzil noto'g'ri");
+    user.email = normalized;
+  }
+  if (phone !== undefined) {
+    const normalized = String(phone).replace(/[\s()-]/g, '');
+    if (normalized && !PHONE_REGEX.test(normalized)) throw new AppError("Telefon raqam noto'g'ri");
+    user.phone = normalized;
+  }
+  if (bio !== undefined) {
+    const value = String(bio).trim();
+    if (value.length > 500) throw new AppError("Bio 500 belgidan oshmasligi kerak");
+    user.bio = value;
+  }
+  if (req.body.removeAvatar === 'true') user.avatar = '';
+  else if (req.file) user.avatar = await uploadImage(req.file, '/avatars');
+
+  await user.save();
+  res.json({ success: true, user: user.toJSON() });
 });
 
 exports.removeProduct = asyncHandler(async (req, res) => {

@@ -18,4 +18,3 @@ export const STATUS_LABEL = {
   sold: 'Kelishilgan',
   expired: 'Muddati tugagan',
 };
-0
