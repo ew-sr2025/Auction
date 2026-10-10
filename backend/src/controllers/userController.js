@@ -30,7 +30,8 @@ exports.updateMe = asyncHandler(async (req, res) => {
   }
   if (bio !== undefined) user.bio = String(bio).trim();
   if (phone !== undefined && typeof phone === 'string') user.phone = phone.replace(/[\s()-]/g, '');
-  if (req.file) user.avatar = await uploadImage(req.file, '/avatars');
+  if (req.body.removeAvatar === 'true') user.avatar = '';
+  else if (req.file) user.avatar = await uploadImage(req.file, '/avatars');
 
   await user.save();
 

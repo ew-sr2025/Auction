@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext.jsx';
 import { useSocket } from '../context/SocketContext.jsx';
 import Countdown from '../components/Countdown.jsx';
 import LocationPicker from '../components/LocationPicker.jsx';
+import { ImageEditor } from '../components/ImageEditor.jsx';
 import { assetUrl } from '../config.js';
 import { STATUS_LABEL, fmtDate, fmtPrice, fullName } from '../utils';
 
@@ -277,11 +278,7 @@ function CreateProduct({ goEdit, done }) {
       )}
       <label>Mahsulot joylashuvi (majburiy)</label>
       <LocationPicker value={location} onChange={setLocation} />
-      <label>
-        Rasmlar (5 tagacha, har biri 5MB gacha)
-        <input type="file" accept="image/*" multiple onChange={(e) => setFiles(Array.from(e.target.files).slice(0, 5))} />
-      </label>
-      {files.length > 0 && <div className="muted small">{files.map((x) => x.name).join(', ')}</div>}
+      <ImageEditor files={files} onFilesChange={setFiles} max={5} title="Mahsulot rasmlari" />
       <p className="muted small">Aloqa raqami: <strong>{user.phone}</strong></p>
       <button className="btn primary" disabled={busy}>{busy ? 'Joylanmoqda...' : 'Joylash'}</button>
     </form>
@@ -422,34 +419,17 @@ function EditProduct({ product, onClose, onSaved }) {
         {!canEditPrice && <p className="muted small">Takliflar bo'lgani uchun narxni o'zgartirib bo'lmaydi.</p>}
         <label>Mahsulot joylashuvi (majburiy)</label>
         <LocationPicker value={location} onChange={setLocation} />
-        {product.images?.length > 0 && (
-          <div>
-            <div className="muted small">Mavjud rasmlar</div>
-            <div className="row2">
-              {product.images.map((img) => (
-                <label key={img} className="card" style={{ padding: '10px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  <img src={assetUrl(img)} alt="" style={{ width: '100%', height: '100px', objectFit: 'cover', borderRadius: '8px' }} />
-                  <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <input
-                      type="checkbox"
-                      checked={removeImages.includes(img)}
-                      onChange={(e) => {
-                        const checked = e.target.checked;
-                        setRemoveImages((prev) => checked ? [...prev, img] : prev.filter((x) => x !== img));
-                      }}
-                    />
-                    O'chirish
-                  </span>
-                </label>
-              ))}
-            </div>
-          </div>
-        )}
-        <label>
-          Yangi rasmlar qo'shish (5 tagacha)
-          <input type="file" accept="image/*" multiple onChange={(e) => setFiles(Array.from(e.target.files).slice(0, 5))} />
-        </label>
-        {files.length > 0 && <div className="muted small">{files.map((x) => x.name).join(', ')}</div>}
+        <ImageEditor
+          images={product.images || []}
+          removedImages={removeImages}
+          onToggleImage={(image) => setRemoveImages((current) =>
+            current.includes(image) ? current.filter((item) => item !== image) : [...current, image]
+          )}
+          files={files}
+          onFilesChange={setFiles}
+          max={5}
+          title="Mahsulot rasmlari"
+        />
         <div className="row2" style={{ marginTop: '12px' }}>
           <button type="button" className="btn" onClick={onClose}>Bekor qilish</button>
           <button className="btn primary" disabled={busy}>{busy ? 'Saqlanmoqda...' : 'Saqlash'}</button>
@@ -469,6 +449,7 @@ function EditProfile() {
     phone: user.phone || '',
   });
   const [avatar, setAvatar] = useState(null);
+  const [removeAvatar, setRemoveAvatar] = useState(false);
   const [error, setError] = useState('');
   const [ok, setOk] = useState('');
   const [busy, setBusy] = useState(false);
@@ -483,9 +464,11 @@ function EditProfile() {
       const fd = new FormData();
       Object.entries(f).forEach(([k, v]) => fd.append(k, v));
       if (avatar) fd.append('avatar', avatar);
+      if (removeAvatar) fd.append('removeAvatar', 'true');
       const { data } = await api.put('/users/me', fd);
       updateUser(data.user);
       setAvatar(null);
+      setRemoveAvatar(false);
       setOk('Saqlandi');
     } catch (err) {
       setError(errMsg(err));
@@ -521,10 +504,18 @@ function EditProfile() {
         Bio
         <textarea rows={3} value={f.bio} onChange={set('bio')} maxLength={500} />
       </label>
-      <label>
-        Profil rasmi
-        <input type="file" accept="image/*" onChange={(e) => setAvatar(e.target.files[0] || null)} />
-      </label>
+      <ImageEditor
+        images={user.avatar && user.avatar !== '' ? [user.avatar] : []}
+        removedImages={removeAvatar && user.avatar ? [user.avatar] : []}
+        onToggleImage={() => setRemoveAvatar((current) => !current)}
+        files={avatar ? [avatar] : []}
+        onFilesChange={(files) => {
+          setAvatar(files[0] || null);
+          if (files.length) setRemoveAvatar(false);
+        }}
+        max={1}
+        single
+      />
       <button className="btn primary" disabled={busy}>{busy ? 'Saqlanmoqda...' : 'Saqlash'}</button>
     </form>
   );

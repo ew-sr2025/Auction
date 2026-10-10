@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Navigate, useNavigate, useParams } from 'react-router-dom';
 import api, { errMsg } from '../api';
 import { useAuth } from '../context/AuthContext.jsx';
-import { assetUrl } from '../config.js';
+import { ImageEditor } from '../components/ImageEditor.jsx';
 
 function UserForm({ user, onCancel, onSaved }) {
   const [fields, setFields] = useState({
@@ -50,14 +50,18 @@ function UserForm({ user, onCancel, onSaved }) {
       </div>
       <label>Telefon raqam<input value={fields.phone} onChange={set('phone')} placeholder="+998901234567" /></label>
       <label>Bio<textarea rows={3} value={fields.bio} onChange={set('bio')} maxLength={500} /></label>
-      {user.avatar && (
-        <label className="admin-current-avatar">
-          Joriy profil rasmi
-          <img src={assetUrl(user.avatar)} alt="" />
-          <span><input type="checkbox" checked={removeAvatar} onChange={(event) => setRemoveAvatar(event.target.checked)} /> Rasmni olib tashlash</span>
-        </label>
-      )}
-      <label>Yangi profil rasmi<input type="file" accept="image/*" onChange={(event) => { setAvatar(event.target.files[0] || null); setRemoveAvatar(false); }} /></label>
+      <ImageEditor
+        images={user.avatar ? [user.avatar] : []}
+        removedImages={removeAvatar && user.avatar ? [user.avatar] : []}
+        onToggleImage={() => setRemoveAvatar((current) => !current)}
+        files={avatar ? [avatar] : []}
+        onFilesChange={(files) => {
+          setAvatar(files[0] || null);
+          if (files.length) setRemoveAvatar(false);
+        }}
+        max={1}
+        single
+      />
       <div className="admin-editor-actions">
         <button type="button" className="btn" onClick={onCancel}>Bekor qilish</button>
         <button className="btn primary" disabled={busy}>{busy ? 'Saqlanmoqda...' : 'Saqlash'}</button>
@@ -173,20 +177,17 @@ function ProductForm({ product, onCancel }) {
           </select>
         </label>
       </div>
-      {product.images?.length > 0 && (
-        <div className="admin-edit-images">
-          <span className="muted small">Mavjud rasmlar — olib tashlash uchun belgilang</span>
-          <div className="admin-image-grid">
-            {product.images.map((image) => (
-              <label className="admin-edit-image" key={image}>
-                <img src={assetUrl(image)} alt="" />
-                <span><input type="checkbox" checked={removeImages.includes(image)} onChange={(event) => setRemoveImages((current) => event.target.checked ? [...current, image] : current.filter((item) => item !== image))} /> O‘chirish</span>
-              </label>
-            ))}
-          </div>
-        </div>
-      )}
-      <label>Yangi rasmlar qo‘shish<input type="file" accept="image/*" multiple onChange={(event) => setFiles(Array.from(event.target.files || []))} /></label>
+      <ImageEditor
+        images={product.images || []}
+        removedImages={removeImages}
+        onToggleImage={(image) => setRemoveImages((current) =>
+          current.includes(image) ? current.filter((item) => item !== image) : [...current, image]
+        )}
+        files={files}
+        onFilesChange={setFiles}
+        max={5}
+        title="Mahsulot rasmlari"
+      />
       <div className="admin-editor-actions">
         <button type="button" className="btn" onClick={onCancel}>Bekor qilish</button>
         <button className="btn primary" disabled={busy}>{busy ? 'Saqlanmoqda...' : 'Saqlash'}</button>
